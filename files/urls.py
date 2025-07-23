@@ -4,10 +4,13 @@ from django.conf.urls.static import static
 from django.urls import path, re_path
 from django.views.static import serve
 
-from . import management_views, views, tinymce_handlers
+from . import management_views, views, tinymce_handlers, secure_media_views
 from .feeds import IndexRSSFeed, SearchRSSFeed
 
 urlpatterns = [
+    # SECURE MEDIA FILE SERVING
+    re_path(r"^media/(?P<file_path>.+)$", secure_media_views.secure_media_file, name="secure_media"),
+
     # TEMPLATE (NON API) VIEWS
     path("rss/", IndexRSSFeed()),
     path("rss", IndexRSSFeed()),
@@ -132,7 +135,7 @@ urlpatterns = [
     re_path("^(?P<slug>[\w.-]*)$", views.view_page, name="get_page"),
     # TinyMCE upload handlers
     path("tinymce/upload/", tinymce_handlers.upload_image, name="tinymce_upload_image"),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]
 
 # urlpatterns = format_suffix_patterns(urlpatterns)
 
@@ -140,13 +143,7 @@ urlpatterns = [
 if settings.DEBUG:
     # problem with start with /
     urlpatterns += [
-        re_path(
-            r"^/media/(?P<path>.*)$",
-            serve,
-            {
-                "document_root": settings.MEDIA_ROOT,
-            },
-        ),
+        # Note: /media/ requests are now handled by secure_media_views
         re_path(
             r"^/api/v1/playlists/(?P<friendly_token>[\w]*)$",
             views.PlaylistDetail.as_view(),

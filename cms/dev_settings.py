@@ -127,6 +127,10 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "handlers": {
+        "console": {
+            "level": "DEBUG",
+            "class": "logging.StreamHandler",
+        },
         "file": {
             "level": "ERROR",
             "class": "logging.FileHandler",
@@ -134,6 +138,11 @@ LOGGING = {
         },
     },
     "loggers": {
+        "files.secure_media_views": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
         "django": {
             "handlers": ["file"],
             "level": "ERROR",
@@ -276,6 +285,10 @@ SHOW_ORIGINAL_MEDIA = True
 # Keep in mind that nginx will serve the file unless there's
 # some authentication taking place. Check nginx file and setup a
 # basic http auth user/password if you want to restrict access
+
+# X-Accel-Redirect settings for secure media serving
+# Set to False in development since Django runserver doesn't support X-Accel-Redirect
+USE_X_ACCEL_REDIRECT = False
 
 MAX_MEDIA_PER_PLAYLIST = 70
 FRIENDLY_TOKEN_LEN = 9

@@ -361,6 +361,11 @@ SHOW_ORIGINAL_MEDIA = True
 # some authentication taking place. Check nginx file and setup a
 # basic http auth user/password if you want to restrict access
 
+# X-Accel-Redirect settings for secure media serving
+# Set to True when using Nginx with X-Accel-Redirect (production)
+# Set to False when using Django development server
+USE_X_ACCEL_REDIRECT = True
+
 MAX_MEDIA_PER_PLAYLIST = 70
 FRIENDLY_TOKEN_LEN = 9
 

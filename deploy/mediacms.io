@@ -21,13 +21,39 @@ server {
         alias /home/cinemata/cinematacms/static ;
     }
 
-    location /media/original {
-        alias /home/cinemata/cinematacms/media_files/original;
+    # Internal locations for X-Accel-Redirect - not accessible externally
+    location /internal/media/original/ {
+        internal;
+        alias /home/cinemata/cinematacms/media_files/original/;
+
+        # Enable efficient file serving
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+
+        # Cache settings for media files
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options nosniff;
     }
 
-    location /media {
-        alias /home/cinemata/cinematacms/media_files ;
+    location /internal/media/ {
+        internal;
+        alias /home/cinemata/cinematacms/media_files/;
+
+        # Enable efficient file serving
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+
+        # Cache settings for media files
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options nosniff;
     }
+
+    # All media requests now go through Django for authentication
+    # Django will use X-Accel-Redirect to serve files efficiently
 
     location / {
         add_header 'Access-Control-Allow-Origin' '*';
@@ -96,15 +122,39 @@ server {
         alias /home/cinemata/cinematacms/static ;
     }
 
-    location /media/original {
-        alias /home/cinemata/cinematacms/media_files/original;
-        #auth_basic "auth protected area";
-        #auth_basic_user_file /home/cinemata/cinematacms/deploy/local_install/.htpasswd;
+    # Internal locations for X-Accel-Redirect - not accessible externally
+    location /internal/media/original/ {
+        internal;
+        alias /home/cinemata/cinematacms/media_files/original/;
+
+        # Enable efficient file serving
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+
+        # Cache settings for media files
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options nosniff;
     }
 
-    location /media {
-        alias /home/cinemata/cinematacms/media_files ;
+    location /internal/media/ {
+        internal;
+        alias /home/cinemata/cinematacms/media_files/;
+
+        # Enable efficient file serving
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+
+        # Cache settings for media files
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options nosniff;
     }
+
+    # All media requests now go through Django for authentication
+    # Django will use X-Accel-Redirect to serve files efficiently
 
     location / {
         add_header 'Access-Control-Allow-Origin' '*';
