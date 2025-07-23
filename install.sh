@@ -80,13 +80,86 @@ sed -i "s/upload\.cinemata\.local/$UPLOAD_SUBDOMAIN/g" deploy/mediacms.io
 
 FRONTEND_HOST_HTTP_PREFIX='http://'$FRONTEND_HOST
 
-echo 'FRONTEND_HOST='\'"$FRONTEND_HOST_HTTP_PREFIX"\' >> cms/local_settings.py
-echo 'UPLOAD_SUBDOMAIN='\'"$UPLOAD_SUBDOMAIN"\' >> cms/local_settings.py
-echo 'PORTAL_NAME='\'"$PORTAL_NAME"\' >> cms/local_settings.py
-echo "SSL_FRONTEND_HOST = FRONTEND_HOST.replace('http', 'https')" >> cms/local_settings.py
+# Create local_settings.py with installation-specific overrides
+cat > cms/local_settings.py << EOF
+import os
+import re
+from dotenv import load_dotenv
+load_dotenv()
 
-echo 'SECRET_KEY='\'"$SECRET_KEY"\' >> cms/local_settings.py
-echo "LOCAL_INSTALL = True" >> cms/local_settings.py
+# Installation-specific settings
+SECRET_KEY = '$SECRET_KEY'
+PORTAL_NAME = '$PORTAL_NAME'
+FRONTEND_HOST = '$FRONTEND_HOST_HTTP_PREFIX'
+LOCAL_INSTALL = True
+
+# Upload subdomain configuration
+UPLOAD_SUBDOMAIN = os.getenv('UPLOAD_SUBDOMAIN', '$UPLOAD_SUBDOMAIN')
+
+# Extract domain from FRONTEND_HOST for dynamic configuration
+FRONTEND_DOMAIN = re.sub(r'^https?://', '', FRONTEND_HOST)
+
+# Override ALLOWED_HOSTS to include user's domains
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    FRONTEND_DOMAIN,
+    UPLOAD_SUBDOMAIN,
+    # Allow any subdomain of the main domain
+    f'.{FRONTEND_DOMAIN}' if '.' in FRONTEND_DOMAIN else FRONTEND_DOMAIN,
+]
+
+# Remove duplicates and empty entries
+ALLOWED_HOSTS = list(filter(None, list(set(ALLOWED_HOSTS))))
+
+# Override domain configurations
+MAIN_DOMAINS = [
+    f"http://{FRONTEND_DOMAIN}",
+    f"https://{FRONTEND_DOMAIN}",
+]
+
+UPLOAD_DOMAINS = [
+    f"http://{UPLOAD_SUBDOMAIN}",
+    f"https://{UPLOAD_SUBDOMAIN}",
+]
+
+# CSRF Trusted Origins for upload subdomain
+CSRF_TRUSTED_ORIGINS = MAIN_DOMAINS + UPLOAD_DOMAINS
+
+# CORS configuration for production
+# The custom UploadCorsMiddleware uses MAIN_DOMAINS and UPLOAD_DOMAINS for allowed origins
+CORS_ORIGIN_ALLOW_ALL = False
+
+
+
+# Session and CSRF cookie configuration for subdomain support
+if FRONTEND_DOMAIN != 'localhost':
+    # Extract the root domain for cookie sharing between subdomains
+    domain_parts = FRONTEND_DOMAIN.split('.')
+    if len(domain_parts) >= 2:
+        SESSION_COOKIE_DOMAIN = f".{'.'.join(domain_parts[-2:])}"
+        CSRF_COOKIE_DOMAIN = f".{'.'.join(domain_parts[-2:])}"
+    else:
+        SESSION_COOKIE_DOMAIN = FRONTEND_DOMAIN
+        CSRF_COOKIE_DOMAIN = FRONTEND_DOMAIN
+    # Production security settings
+    SESSION_COOKIE_SAMESITE = 'None'
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SAMESITE = 'None'
+    CSRF_COOKIE_SECURE = True
+else:
+    SESSION_COOKIE_DOMAIN = ".localhost"
+    CSRF_COOKIE_DOMAIN = ".localhost"
+    # Localhost settings (for testing)
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_SECURE = False
+
+# SSL Frontend Host
+SSL_FRONTEND_HOST = FRONTEND_HOST.replace('http', 'https')
+
+EOF
 
 mkdir logs
 mkdir pids
