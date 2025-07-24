@@ -26,7 +26,7 @@ class SecureMediaView(View):
     Handles authentication and authorization for different media visibility levels:
     - public: Anyone can access
     - unlisted: Any authenticated user can access
-    - restricted: Like unlisted (password protection handled elsewhere)
+    - restricted: Authenticated users with valid password (or owner/editor/manager)
     - private: Only owner, managers, or admins can access
     """
 
@@ -161,9 +161,39 @@ class SecureMediaView(View):
                 return True
             return False
 
-        # Unlisted and restricted media - any authenticated user
-        if media.state in ['unlisted', 'restricted']:
+        # Unlisted media - any authenticated user
+        if media.state == 'unlisted':
             return user.is_authenticated
+
+                # Restricted media - requires authentication AND password verification
+        if media.state == 'restricted':
+            if not user.is_authenticated:
+                logger.debug(f"Restricted media access denied: user not authenticated")
+                return False
+
+            # Owner, editors, and managers can access without password
+            if (user == media.user or
+                is_mediacms_editor(user) or
+                is_mediacms_manager(user)):
+                logger.debug(f"Restricted media access granted: user has elevated permissions")
+                return True
+
+            # For other authenticated users, check password from session or query param
+            # Check for password in session (set by view_media template)
+            session_password = request.session.get(f'media_password_{media.friendly_token}')
+            if session_password and session_password == media.password:
+                logger.debug(f"Restricted media access granted: valid session password")
+                return True
+
+            # Check for password in query parameter (for API access)
+            query_password = request.GET.get('password')
+            if query_password and query_password == media.password:
+                logger.debug(f"Restricted media access granted: valid query password")
+                return True
+
+            # No valid password provided
+            logger.debug(f"Restricted media access denied: no valid password provided")
+            return False
 
         return False
 

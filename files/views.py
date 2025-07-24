@@ -365,6 +365,8 @@ def view_media(request):
         if request.POST.get("password"):
             if media.password == request.POST.get("password"):
                 can_see_restricted_media = True
+                # Store password in session for file access
+                request.session[f'media_password_{media.friendly_token}'] = media.password
             else:
                 wrong_password_provided = True
 

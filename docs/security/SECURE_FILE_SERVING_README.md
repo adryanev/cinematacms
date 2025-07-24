@@ -26,8 +26,22 @@ The implementation ensures that all media file access goes through Django for pe
 |-------|-------------|
 | `public` | Anyone can access |
 | `unlisted` | Any authenticated user can access |
-| `restricted` | Any authenticated user can access (password handled elsewhere) |
+| `restricted` | Authenticated users with valid password (or owner/editor/manager) |
 | `private` | Only owner, managers, or admins can access |
+
+#### Restricted Media Password Verification
+For `restricted` state media, the system implements a comprehensive password verification flow:
+
+1. **Password Input**: Users enter password via media viewing page form
+2. **Session Storage**: Valid passwords are stored in Django sessions for seamless file access
+3. **File Access**: Media files check session for valid password before serving
+4. **Privileged Access**: Media owners, editors, and managers bypass password requirement
+5. **API Support**: Password can be passed via query parameter for API access
+
+**Password Verification Sources** (checked in order):
+- Session data (set after successful form submission)
+- Query parameter `?password=xxx` (for API access)
+- User privileges (owner/editor/manager automatically granted access)
 
 #### Special Cases
 - **Public Media Files**: Bypass Django permission checks for certain file types:
@@ -148,10 +162,13 @@ Examples:
 - Integrates with existing MediaCMS user roles (editor, manager, admin)
 
 ### Authorization Logic
-- Media owner always has access to their content
-- Managers and editors have access to all content
-- Public content accessible to everyone
-- Private content restricted to authorized users only
+- **Public Media**: Anyone can access
+- **Unlisted Media**: Any authenticated user can access
+- **Restricted Media**:
+  - Media owners, editors, and managers have automatic access
+  - Other authenticated users need valid password (via session or query parameter)
+  - Anonymous users cannot access
+- **Private Media**: Only media owner, editors, and managers can access
 
 ## Performance Optimizations
 
@@ -256,6 +273,25 @@ curl -I -H "Authorization: Token your-token" http://your-domain/media/original/u
 # Should return 200 OK (X-Accel-Redirect in production, direct serving in development)
 ```
 
+### Test Restricted Content (Password Protected)
+```bash
+# Test without password (should fail)
+curl -I http://your-domain/media/original/user/username/restricted-file.mp4
+# Should return 403 Forbidden
+
+# Test with valid password via query parameter
+curl -I "http://your-domain/media/original/user/username/restricted-file.mp4?password=validpassword"
+# Should return 200 OK
+
+# Test with invalid password
+curl -I "http://your-domain/media/original/user/username/restricted-file.mp4?password=wrongpassword"
+# Should return 403 Forbidden
+
+# Test as media owner (should bypass password)
+curl -I -H "Authorization: Token owner-token" http://your-domain/media/original/user/username/restricted-file.mp4
+# Should return 200 OK (no password needed)
+```
+
 ### Test Public Media Files Access
 ```bash
 # Test thumbnails
@@ -300,17 +336,24 @@ uv run manage.py runserver --settings=cms.dev_settings
    - Check Django authentication middleware
    - Review permission checking logic
 
-3. **Files not loading in development**
+3. **Restricted media password issues**
+   - Verify password is correctly set on media object
+   - Check session storage after successful password submission
+   - Ensure user is authenticated before password check
+   - Test with `?password=xxx` query parameter for API access
+   - Verify owner/editor/manager privileges are working correctly
+
+4. **Files not loading in development**
    - Ensure `USE_X_ACCEL_REDIRECT = False` in development settings
    - Check that `MEDIA_ROOT` is correctly configured
    - Verify file permissions are readable by Django process
 
-4. **Direct file access still working in production**
+5. **Direct file access still working in production**
    - Ensure old Nginx locations are removed
    - Verify internal locations are marked as `internal`
    - Check Nginx configuration reload
 
-5. **Poor performance in development**
+6. **Poor performance in development**
    - This is expected - Django direct serving is slower than Nginx
    - For performance testing, use production environment
    - Consider using a local Nginx setup for performance testing
@@ -341,12 +384,17 @@ LOGGING = {
 
 ## Benefits
 
-1. **Security**: All file access controlled by Django authentication/authorization
+1. **Enhanced Security**:
+   - All file access controlled by Django authentication/authorization
+   - Password protection for restricted media with session-based verification
+   - Comprehensive permission system (public, unlisted, restricted, private)
 2. **Performance**: High-speed file serving via Nginx X-Accel-Redirect in production
 3. **Development Friendly**: Works seamlessly with Django runserver
 4. **Scalability**: Minimal Django processing for file requests in production
 5. **Flexibility**: Easy to modify access rules without touching Nginx config
-6. **Compatibility**: Works with existing MediaCMS authentication system
+6. **User Experience**: Seamless password verification without repeated prompts
+7. **API Compatible**: Supports both web interface and API access patterns
+8. **Compatibility**: Works with existing MediaCMS authentication system
 
 ## Future Enhancements
 
