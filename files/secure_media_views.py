@@ -1,5 +1,4 @@
 import hashlib
-import hmac
 import logging
 import mimetypes
 import os
@@ -342,7 +341,17 @@ class SecureMediaView(View):
         # otherwise use the URL path
         serving_path = actual_file_path if actual_file_path else file_path
 
-        return self._serve_file(serving_path, head_request)
+        # Server-side manifest rewriting for restricted HLS content
+        if media.state == "restricted" and serving_path.endswith(".m3u8"):
+            return self._serve_rewritten_manifest(request, serving_path)
+
+        response = self._serve_file(serving_path, head_request)
+
+        # Add Referrer-Policy for restricted media
+        if media.state == "restricted":
+            response["Referrer-Policy"] = "no-referrer"
+
+        return response
 
     def _is_valid_file_path(self, file_path: str) -> bool:
         """Enhanced path validation with security checks."""
@@ -995,30 +1004,15 @@ class SecureMediaView(View):
         if media.state in ("public", "unlisted"):
             return True
 
-        # For restricted media, include password info in cache key
+        # For restricted media, include token info in cache key
         additional_data = None
         if media.state == "restricted":
-            session_password_hash = request.session.get(f"media_password_{media.friendly_token}")
-            query_password = request.GET.get("password")
+            query_token = request.GET.get("token")
+            session_token = request.session.get(f"media_token_{media.friendly_token}")
+            token_material = query_token or session_token or "no_token"
+            token_hash = hashlib.blake2b(token_material.encode("utf-8"), digest_size=6).hexdigest()
+            additional_data = f"restricted:{token_hash}"
 
-            # Determine what password material to use for cache key
-            if session_password_hash:
-                # Session already contains hash of the correct password
-                attempt_material = session_password_hash
-            elif query_password:
-                # Hash the query password to compare with expected hash
-                attempt_material = hashlib.pbkdf2_hmac(
-                    "sha256",
-                    query_password.encode("utf-8"),
-                    media.friendly_token.encode("utf-8"),
-                    iterations=600_000,
-                ).hex()
-            else:
-                attempt_material = "no_password"
-
-            # Create a shorter hash for cache key (avoid key length issues)
-            password_hash = hashlib.blake2b(attempt_material.encode("utf-8"), digest_size=6).hexdigest()
-            additional_data = f"restricted:{password_hash}"
         # Generate cache key
         cache_key = get_permission_cache_key(user_id, media.uid, additional_data)
 
@@ -1028,13 +1022,12 @@ class SecureMediaView(View):
             logger.debug(f"Using cached permission result for user {user_id}, media {media.uid}")
             return cached_result
 
-        # Calculate permission (original logic)
+        # Calculate permission
         result = self._calculate_access_permission(request, media)
 
-        # Cache the result (but with shorter timeout for restricted media with passwords)
+        # Cache the result (shorter timeout for restricted media)
         cache_timeout = PERMISSION_CACHE_TIMEOUT
         if media.state == "restricted" and additional_data:
-            # Shorter cache for password-based access
             cache_timeout = RESTRICTED_MEDIA_CACHE_TIMEOUT
 
         set_cached_permission(cache_key, result, cache_timeout)
@@ -1042,50 +1035,32 @@ class SecureMediaView(View):
         return result
 
     def _calculate_access_permission(self, request, media: Media) -> bool:
-        """Calculate access permission without caching (original logic)."""
+        """Calculate access permission — token-based for restricted media."""
         user = request.user
 
-        # Elevated users bypass further checks for non-public media
+        # Elevated users bypass further checks (owner/editor/manager)
         if user.is_authenticated and self._user_has_elevated_access(user, media):
             logger.debug(f"Access granted for '{media.state}' media: user has elevated permissions")
             return True
 
         if media.state == "restricted":
-            session_password_hash = request.session.get(f"media_password_{media.friendly_token}")
-            query_password = request.GET.get("password")
+            from files.token_utils import validate_token
 
-            # Generate expected hash of the stored password for comparison using PBKDF2
-            expected_password_hash = None
-            if media.password:
-                expected_password_hash = hashlib.pbkdf2_hmac(
-                    "sha256",
-                    media.password.encode("utf-8"),
-                    media.friendly_token.encode("utf-8"),
-                    iterations=600_000,
-                ).hex()
+            media_uid = media.uid.hex if hasattr(media.uid, "hex") else str(media.uid)
 
-            # Compare hashes: session stores a hash; hash the query param as well
-            valid_session_password = (
-                bool(session_password_hash)
-                and bool(expected_password_hash)
-                and hmac.compare_digest(session_password_hash, expected_password_hash)
-            )
-
-            valid_query_password = False
-            if query_password and expected_password_hash:
-                query_hash = hashlib.pbkdf2_hmac(
-                    "sha256",
-                    query_password.encode("utf-8"),
-                    media.friendly_token.encode("utf-8"),
-                    iterations=600_000,
-                ).hex()
-                valid_query_password = hmac.compare_digest(query_hash, expected_password_hash)
-
-            if valid_session_password or valid_query_password:
-                logger.debug("Restricted media access granted: valid password provided")
+            # Check ?token= query parameter
+            query_token = request.GET.get("token")
+            if query_token and validate_token(query_token, media_uid):
+                logger.debug("Restricted media access granted: valid token in query param")
                 return True
 
-            logger.debug("Restricted media access denied: no valid password provided")
+            # Check session token as fallback
+            session_token = request.session.get(f"media_token_{media.friendly_token}")
+            if session_token and validate_token(session_token, media_uid):
+                logger.debug("Restricted media access granted: valid token in session")
+                return True
+
+            logger.debug("Restricted media access denied: no valid token")
             return False
 
         if not user.is_authenticated:
@@ -1097,6 +1072,42 @@ class SecureMediaView(View):
             return False
 
         return False
+
+    def _serve_rewritten_manifest(self, request, file_path: str) -> HttpResponse:
+        """Read an .m3u8 manifest, inject ?token= into all URIs, return directly.
+
+        This replaces X-Accel-Redirect for restricted HLS manifests so that
+        Safari/iOS native HLS, Chrome 141+, and future mobile apps all
+        receive authenticated segment URLs in the manifest itself.
+        """
+        from files.token_utils import rewrite_m3u8
+
+        token = request.GET.get("token") or request.session.get(
+            f"media_token_{file_path.split('/')[1] if '/' in file_path else ''}"
+        )
+        if not token:
+            # Try to extract friendly_token from the path and check session
+            # The token should already be validated by _check_access_permission
+            token = ""
+
+        safe_path = os.path.normpath(os.path.join(settings.MEDIA_ROOT, file_path))
+        media_root = os.path.normpath(settings.MEDIA_ROOT)
+        if not safe_path.startswith(media_root):
+            raise Http404("Invalid file path")
+
+        try:
+            with open(safe_path, encoding="utf-8") as f:
+                content = f.read()
+        except FileNotFoundError:
+            raise Http404("Manifest not found")
+
+        if token:
+            content = rewrite_m3u8(content, token)
+
+        response = HttpResponse(content, content_type="application/vnd.apple.mpegurl")
+        response["Cache-Control"] = "no-store"
+        response["Referrer-Policy"] = "no-referrer"
+        return response
 
     def _serve_file(self, file_path: str, head_request: bool = False) -> HttpResponse:
         """Serve file using X-Accel-Redirect (production) or Django (development)."""
