@@ -341,10 +341,12 @@ class SecureMediaView(View):
         # otherwise use the URL path
         serving_path = actual_file_path if actual_file_path else file_path
 
-        # Server-side manifest rewriting for restricted HLS content
+        # Server-side manifest rewriting for restricted HLS content.
+        # Use the validated token so that an invalid query-string token
+        # can never be injected into rewritten manifest URIs.
         if media.state == "restricted" and serving_path.endswith(".m3u8"):
-            token = request.GET.get("token") or request.session.get(f"media_token_{media.friendly_token}")
-            return self._serve_rewritten_manifest(request, serving_path, token=token)
+            valid_token = self._get_valid_restricted_token(request, media)
+            return self._serve_rewritten_manifest(request, serving_path, token=valid_token)
 
         response = self._serve_file(serving_path, head_request)
 
@@ -996,6 +998,31 @@ class SecureMediaView(View):
 
         return result
 
+    def _get_valid_restricted_token(self, request, media: Media) -> str | None:
+        """Resolve the first valid restricted-media token from the request.
+
+        Checks the query-string ``?token=`` first, then falls back to the
+        session token.  Returns the validated token string, or ``None`` if
+        neither candidate is valid.
+
+        This single source of truth prevents an attacker-controlled invalid
+        query token from polluting the permission cache or leaking into
+        rewritten HLS manifests.
+        """
+        from files.token_utils import validate_token
+
+        media_uid = media.uid_hex
+
+        query_token = request.GET.get("token")
+        if query_token and validate_token(query_token, media_uid):
+            return query_token
+
+        session_token = request.session.get(f"media_token_{media.friendly_token}")
+        if session_token and validate_token(session_token, media_uid):
+            return session_token
+
+        return None
+
     def _check_access_permission(self, request, media: Media) -> bool:
         """Check if the user has permission to access the media with caching."""
         user = request.user
@@ -1005,12 +1032,14 @@ class SecureMediaView(View):
         if media.state in ("public", "unlisted"):
             return True
 
-        # For restricted media, include token info in cache key
+        # For restricted media, include *validated* token info in cache key.
+        # We resolve the winning valid token once and reuse it everywhere so
+        # that an invalid query token can never pollute the cache entry.
         additional_data = None
+        valid_token = None
         if media.state == "restricted":
-            query_token = request.GET.get("token")
-            session_token = request.session.get(f"media_token_{media.friendly_token}")
-            token_material = query_token or session_token or "no_token"
+            valid_token = self._get_valid_restricted_token(request, media)
+            token_material = valid_token or "no_token"
             token_hash = hashlib.blake2b(token_material.encode("utf-8"), digest_size=6).hexdigest()
             additional_data = f"restricted:{token_hash}"
 
@@ -1024,7 +1053,7 @@ class SecureMediaView(View):
             return cached_result
 
         # Calculate permission
-        result = self._calculate_access_permission(request, media)
+        result = self._calculate_access_permission(request, media, valid_token=valid_token)
 
         # Cache the result (shorter timeout for restricted media)
         cache_timeout = PERMISSION_CACHE_TIMEOUT
@@ -1035,8 +1064,16 @@ class SecureMediaView(View):
 
         return result
 
-    def _calculate_access_permission(self, request, media: Media) -> bool:
-        """Calculate access permission — token-based for restricted media."""
+    def _calculate_access_permission(self, request, media: Media, *, valid_token: str | None = None) -> bool:
+        """Calculate access permission -- token-based for restricted media.
+
+        Args:
+            request: The HTTP request.
+            media: The media object to check access for.
+            valid_token: Pre-validated token resolved by ``_get_valid_restricted_token``.
+                         When provided, the token has already been validated and no
+                         redundant validation is performed.
+        """
         user = request.user
 
         # Elevated users bypass further checks (owner/editor/manager)
@@ -1045,20 +1082,14 @@ class SecureMediaView(View):
             return True
 
         if media.state == "restricted":
-            from files.token_utils import validate_token
-
-            media_uid = media.uid_hex
-
-            # Check ?token= query parameter
-            query_token = request.GET.get("token")
-            if query_token and validate_token(query_token, media_uid):
-                logger.debug("Restricted media access granted: valid token in query param")
+            if valid_token is not None:
+                logger.debug("Restricted media access granted: valid token (pre-validated)")
                 return True
 
-            # Check session token as fallback
-            session_token = request.session.get(f"media_token_{media.friendly_token}")
-            if session_token and validate_token(session_token, media_uid):
-                logger.debug("Restricted media access granted: valid token in session")
+            # If valid_token was not passed in (e.g. direct call), fall back to resolution
+            resolved = self._get_valid_restricted_token(request, media)
+            if resolved:
+                logger.debug("Restricted media access granted: valid token (resolved in calculate)")
                 return True
 
             logger.debug("Restricted media access denied: no valid token")
