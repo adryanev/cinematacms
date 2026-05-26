@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from celery.schedules import crontab
 from corsheaders.defaults import default_headers
+from django.templatetags.static import static
 from django.urls import reverse_lazy
 
 from .settings_utils import get_whisper_cpp_paths
@@ -623,20 +624,25 @@ UNFOLD = {
     "SITE_TITLE": "CinemataCMS Admin",
     "SITE_HEADER": "CinemataCMS",
     "THEME": "light",
-    # Color scales mirror docs/modern-track-color-system.md - keep in sync if the modern palette changes.
+    # Color scales mirror the modern home page light theme (docs/modern-track-color-system.md).
+    # Both primary and base use Pacific Deep so the active sidebar item and Save buttons read
+    # as dark navy on a light-blue surface, matching the home's active "Home" nav tab and
+    # DONATE button. accent = Sunset Horizon (orange links / focus rings, matches "VIEW ALL"
+    # and "SIGN IN" on the home). The dark topbar from the home is reproduced via a CSS
+    # override registered in STYLES (see static/admin/css/unfold-overrides.css).
     "COLORS": {
         "primary": {
-            "50": "#defbff",
-            "100": "#b1dffb",
-            "200": "#8bc0e0",
-            "300": "#64a1c5",
-            "400": "#3d83aa",
-            "500": "#026690",
-            "600": "#026690",
-            "700": "#004e74",
-            "800": "#003757",
-            "900": "#00223d",
-            "950": "#001023",
+            "50": "#ebf8ff",
+            "100": "#c1d9f2",
+            "200": "#9eb8d3",
+            "300": "#7b98b6",
+            "400": "#5a7999",
+            "500": "#3a5c7c",
+            "600": "#1a3f61",
+            "700": "#1a3f61",
+            "800": "#0b2d4a",
+            "900": "#011c34",
+            "950": "#000c20",
         },
         "base": {
             "50": "#ebf8ff",
@@ -672,6 +678,9 @@ UNFOLD = {
             "important-dark": "#defbff",
         },
     },
+    "STYLES": [
+        lambda request: static("admin/css/unfold-overrides.css"),
+    ],
     "SIDEBAR": {
         "show_search": True,
         "show_all_applications": False,

@@ -6,6 +6,8 @@
 
 {% block extrastyle %}
     {{ block.super }}
+    {# Palette bridge must load first so subsequent admin CSS can resolve var(--cinemata-*). #}
+    <link href="{% static 'admin/css/cinemata_palette.css' %}" rel="stylesheet">
     <link href="{% static 'admin/css/cinemata_unfold.css' %}" rel="stylesheet">
 {% endblock %}
 

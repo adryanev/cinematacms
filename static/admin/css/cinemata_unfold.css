@@ -1,20 +1,54 @@
+/* CinemataCMS admin theme - semantic role layer over the canonical palette.
+ *
+ * Each --cinemata-admin-* token below is a role-based mapping (page background,
+ * surface, primary action, etc.) that points at the canonical --cinemata-* palette
+ * defined in cinemata_palette.css. Subsequent rules in this file consume the
+ * semantic tokens, not the palette directly, so palette changes propagate without
+ * editing the rules. To change a role (e.g. swap primary from Strait Blue to
+ * Pacific Deep), only update its mapping in :root below.
+ *
+ * Source palette: docs/modern-track-color-system.md
+ * Bridge file:    cinemata_palette.css (must load BEFORE this file)
+ */
+
 :root {
-    --cinemata-admin-page: #f9fafb;
-    --cinemata-admin-sidebar: #ebf8ff;
-    --cinemata-admin-sidebar-active: #defbff;
-    --cinemata-admin-surface: #ffffff;
-    --cinemata-admin-surface-muted: #f3f4f6;
-    --cinemata-admin-border: #c1d9f2;
-    --cinemata-admin-border-strong: #9eb8d3;
-    --cinemata-admin-text: #3a5c7c;
-    --cinemata-admin-text-strong: #011c34;
-    --cinemata-admin-text-muted: #5a7999;
-    --cinemata-admin-primary: #026690;
-    --cinemata-admin-primary-hover: #004e74;
-    --cinemata-admin-link: #a15728;
-    --cinemata-admin-link-hover: #833e0b;
-    --cinemata-admin-focus: #ed7c30;
-    --cinemata-admin-focus-soft: #ffc9a4;
+    /* Surfaces - mirror the modern home page light theme (verified by inspecting the
+     * live page at http://localhost:8000/):
+     *   page    = pacific-deep-50 (the body / .page-main-wrap actually paints blue)
+     *   sidebar = neutral-50 (the <aside> actually paints white) */
+    --cinemata-admin-page: var(--cinemata-pacific-deep-50);
+    --cinemata-admin-sidebar: var(--cinemata-neutral-50);
+    /* Active sidebar item mirrors the home page's active "Home" tab:
+     * Pacific Deep 700 fill, white text, no border. High-contrast pop on white. */
+    --cinemata-admin-sidebar-active: var(--cinemata-pacific-deep-700);
+    --cinemata-admin-sidebar-active-text: var(--cinemata-white);
+    --cinemata-admin-surface: var(--cinemata-white);
+    --cinemata-admin-surface-muted: var(--cinemata-neutral-100);
+
+    /* Borders */
+    --cinemata-admin-border: var(--cinemata-pacific-deep-100);
+    --cinemata-admin-border-strong: var(--cinemata-pacific-deep-200);
+
+    /* Text */
+    --cinemata-admin-text: var(--cinemata-pacific-deep-500);
+    --cinemata-admin-text-strong: var(--cinemata-pacific-deep-900);
+    --cinemata-admin-text-muted: var(--cinemata-pacific-deep-400);
+
+    /* Action - Primary (Strait Blue, matches modern Button.jsx primary) */
+    --cinemata-admin-primary: var(--cinemata-strait-blue-500);
+    --cinemata-admin-primary-hover: var(--cinemata-strait-blue-700);
+
+    /* Action - Secondary (Sunset Horizon, matches modern Button.jsx secondary) */
+    --cinemata-admin-secondary: var(--cinemata-sunset-horizon-500);
+    --cinemata-admin-secondary-hover: var(--cinemata-sunset-horizon-700);
+
+    /* Links (Sunset Horizon family, slightly darker than the accent step) */
+    --cinemata-admin-link: var(--cinemata-sunset-horizon-600);
+    --cinemata-admin-link-hover: var(--cinemata-sunset-horizon-700);
+
+    /* Focus rings - Sunset Horizon 400p, constant across themes per the modern system */
+    --cinemata-admin-focus: var(--cinemata-sunset-horizon-400p);
+    --cinemata-admin-focus-soft: var(--cinemata-sunset-horizon-100);
 }
 
 html.light body {
@@ -73,15 +107,24 @@ html.light #nav-sidebar a {
     color: var(--cinemata-admin-text);
 }
 
+/* Hover mirrors the modern home page (NavigationMenuList.jsx):
+ *   hover:bg-cinemata-pacific-deep-50 - subtle light-blue tint
+ * The text strengthens to Pacific Deep 900 rather than flipping to primary
+ * (the primary color is reserved for the active state, not hover, so the two
+ * read as distinct affordances). */
 html.light #nav-sidebar a:hover {
-    background-color: var(--cinemata-admin-surface);
-    color: var(--cinemata-admin-primary);
+    background-color: var(--cinemata-pacific-deep-50) !important;
+    color: var(--cinemata-admin-text-strong) !important;
 }
 
 html.light #nav-sidebar a.active {
     background-color: var(--cinemata-admin-sidebar-active);
-    box-shadow: inset 0 0 0 1px var(--cinemata-admin-border-strong);
-    color: var(--cinemata-admin-primary);
+    color: var(--cinemata-admin-sidebar-active-text);
+}
+
+html.light #nav-sidebar a.active:hover {
+    background-color: var(--cinemata-admin-sidebar-active);
+    color: var(--cinemata-admin-sidebar-active-text);
 }
 
 html.light #nav-sidebar input::placeholder {

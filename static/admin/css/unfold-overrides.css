@@ -1,0 +1,197 @@
+/* unfold admin overrides - selector-based fixes for unfold's default DOM that
+ * UNFOLD["COLORS"] / cinemata_unfold.css cannot reach.
+ *
+ * All color values reference the canonical --cinemata-* palette from
+ * cinemata_palette.css. The semantic --cinemata-admin-* tokens from
+ * cinemata_unfold.css are NOT used here because these overrides target unfold's
+ * chrome (which has its own role assignments, e.g. always-dark topbar) that
+ * differs from the page surfaces covered by the admin semantic layer.
+ *
+ * Load order assumption: cinemata_palette.css and cinemata_unfold.css have
+ * already loaded by the time the rules below run.
+ *
+ * Source palette: docs/modern-track-color-system.md
+ */
+
+/* === Sidebar logo strip (CinemataCMS logo + collapse button row) === */
+#nav-sidebar-inner > div:first-child {
+    background-color: var(--cinemata-pacific-deep-900) !important;
+    border-bottom-color: var(--cinemata-pacific-deep-900) !important;
+}
+
+#nav-sidebar-inner > div:first-child,
+#nav-sidebar-inner > div:first-child > div,
+#nav-sidebar-inner > div:first-child span,
+#nav-sidebar-inner > div:first-child button,
+#nav-sidebar-inner > div:first-child svg {
+    color: var(--cinemata-strait-blue-50) !important;
+}
+
+/* Logo box blends with the dark strip rather than re-asserting the primary-600 fill. */
+#nav-sidebar-inner > div:first-child a.bg-primary-600 {
+    background-color: transparent !important;
+}
+
+/* Hover for anchors inside the dark logo strip: keep transparent bg (the generic
+ * #nav-sidebar a:hover would paint Pacific Deep 50 on the dark navy, which reads
+ * as broken). Text shifts to Sunset Horizon, mirroring the home page's accent
+ * color on chrome hovers. */
+#nav-sidebar-inner > div:first-child a:hover {
+    background-color: transparent !important;
+    color: var(--cinemata-sunset-horizon-400p) !important;
+}
+
+/* === Main content top bar (sidebar toggle + page title / breadcrumbs) ===
+ * Sticky so it stays pinned at the top during vertical scroll, mirroring the home
+ * page's always-visible topbar (frontend/src/features/layout/Topbar.jsx). */
+#main > div:first-child {
+    background-color: var(--cinemata-pacific-deep-900) !important;
+    border-bottom-color: var(--cinemata-pacific-deep-900) !important;
+    position: sticky !important;
+    top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* Move the mb-6 breathing room to the next sibling so the dark band sits flush. */
+#main > div:first-child + div {
+    margin-top: 24px !important;
+}
+
+#main > div:first-child,
+#main > div:first-child h1,
+#main > div:first-child a,
+#main > div:first-child button,
+#main > div:first-child span,
+#main > div:first-child ol,
+#main > div:first-child li,
+#main > div:first-child svg {
+    color: var(--cinemata-strait-blue-50) !important;
+}
+
+/* === "Add new" floating action button mirrors the home's orange SIGN IN. ===
+ * Targets the add-link by href pattern; excludes the sidebar logo, which also
+ * carries the bg-primary-600 class. */
+a.bg-primary-600[href$="/add/"],
+a.bg-primary-600[href*="/add"],
+.fixed a.bg-primary-600 {
+    background-color: var(--cinemata-sunset-horizon-400p) !important;
+    color: var(--cinemata-strait-blue-50) !important;
+}
+
+a.bg-primary-600[href$="/add/"]:hover,
+a.bg-primary-600[href*="/add"]:hover,
+.fixed a.bg-primary-600:hover {
+    background-color: var(--cinemata-sunset-horizon-500) !important;
+}
+
+/* === Header utility buttons (History, View on site) on dark navy chrome ===
+ * unfold renders these inside a <ul class="bg-white"> pill. On the dark navy bar
+ * the white pill looks out of place; override to a ghost-button treatment using
+ * subtle white overlays that read as "buttons on dark chrome". */
+#main > div:first-child ul.bg-white {
+    background-color: transparent !important;
+}
+
+#main > div:first-child ul.bg-white > li {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+#main > div:first-child ul.bg-white > li:hover {
+    background-color: rgba(255, 255, 255, 0.14) !important;
+    border-color: rgba(255, 255, 255, 0.32) !important;
+}
+
+#main > div:first-child ul.bg-white > li > a {
+    color: var(--cinemata-strait-blue-50) !important;
+}
+
+#main > div:first-child ul.bg-white > li > a:hover {
+    color: var(--cinemata-sunset-horizon-400p) !important;
+}
+
+/* === Change-form submit row follows the modern Button.jsx convention ===
+ * - _save       = Primary    (Strait Blue, set by cinemata_unfold.css)
+ * - _continue   = Secondary  (Sunset Horizon orange)
+ * - _addanother = Outlined   (Pacific Deep border, transparent fill) */
+html.light button[name="_continue"],
+html.light input[type="submit"][name="_continue"] {
+    background-color: var(--cinemata-sunset-horizon-500) !important;
+    color: var(--cinemata-white) !important;
+    border-color: var(--cinemata-sunset-horizon-500) !important;
+}
+
+html.light button[name="_continue"]:hover,
+html.light input[type="submit"][name="_continue"]:hover {
+    background-color: var(--cinemata-sunset-horizon-700) !important;
+    border-color: var(--cinemata-sunset-horizon-700) !important;
+}
+
+html.light button[name="_addanother"],
+html.light input[type="submit"][name="_addanother"] {
+    background-color: transparent !important;
+    color: var(--cinemata-pacific-deep-700) !important;
+    border-color: var(--cinemata-pacific-deep-700) !important;
+}
+
+html.light button[name="_addanother"]:hover,
+html.light input[type="submit"][name="_addanother"]:hover {
+    background-color: var(--cinemata-pacific-deep-900) !important;
+    color: var(--cinemata-strait-blue-50) !important;
+    border-color: var(--cinemata-pacific-deep-900) !important;
+}
+
+/* === Filter sidebar segment buttons (All / Yes / No / Unknown) ===
+ * unfold renders these as <ul> > <li class="basis-1/3 ..."> (or basis-1/4 for
+ * four options). Active <li> carries `text-primary-600`. Default styling shows
+ * only a color shift on the active item which reads as too subtle here. Restyled
+ * to match the modern Button.jsx segmented-control convention:
+ *   - Active   = filled Strait Blue, white text
+ *   - Inactive = transparent, Pacific Deep text
+ *   - Group    = thin Pacific Deep border, rounded corners */
+html.light ul:has(> li[class*="basis-1/"]) {
+    border: 1px solid var(--cinemata-pacific-deep-700) !important;
+    border-radius: 6px !important;
+    overflow: hidden !important;
+}
+
+html.light ul > li[class*="basis-1/"] {
+    background-color: transparent !important;
+    border-right-color: var(--cinemata-pacific-deep-700) !important;
+    transition: background-color 150ms ease, color 150ms ease;
+}
+
+html.light ul > li[class*="basis-1/"]:hover {
+    background-color: var(--cinemata-pacific-deep-50) !important;
+}
+
+html.light ul > li[class*="basis-1/"] > a {
+    color: var(--cinemata-pacific-deep-700) !important;
+}
+
+html.light ul > li[class*="basis-1/"] > a:hover {
+    color: var(--cinemata-strait-blue-500) !important;
+}
+
+html.light ul > li[class*="basis-1/"].text-primary-600 {
+    background-color: var(--cinemata-strait-blue-500) !important;
+}
+
+html.light ul > li[class*="basis-1/"].text-primary-600 > a,
+html.light ul > li[class*="basis-1/"].text-primary-600 > a:hover {
+    color: var(--cinemata-white) !important;
+}
+
+/* === Stacked-layout filter list (long lists like categories) ===
+ * Uses block-layout <li> with `border-b border-base-200`. Active item gets
+ * `text-primary-600` + `font-semibold`. Restyle the active row with a filled
+ * pill rather than only a text color change. */
+html.light ul > li.border-b.text-primary-600,
+html.light ul > li.border-b[class*="text-primary-600"] {
+    background-color: var(--cinemata-strait-blue-500) !important;
+}
+
+html.light ul > li.border-b.text-primary-600 > a,
+html.light ul > li.border-b[class*="text-primary-600"] > a {
+    color: var(--cinemata-white) !important;
+}
