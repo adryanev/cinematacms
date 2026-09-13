@@ -1190,9 +1190,13 @@ class LocalGrafanaInstallerTests(unittest.TestCase):
             self.assertIn(metric, coverage["metric_schemas"])
             self.assertIn(metric, queries)
 
-    def test_nginx_example_preserves_the_loopback_metrics_route(self):
+    def test_nginx_example_keeps_loopback_metrics_outside_https_redirect(self):
         nginx_config = (PROJECT_ROOT / "deploy/grafana/nginx.conf.example").read_text()
 
+        self.assertIn(
+            "listen 127.0.0.1:8081;",
+            nginx_config,
+        )
         self.assertIn(
             "include /etc/nginx/snippets/cinematacms-metrics.conf;",
             nginx_config,

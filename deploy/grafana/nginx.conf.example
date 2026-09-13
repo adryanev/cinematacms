@@ -1,3 +1,11 @@
+# Keep the local Prometheus scrape outside the public HTTP-to-HTTPS redirect.
+server {
+    listen 127.0.0.1:8081;
+    server_name _;
+
+    include /etc/nginx/snippets/cinematacms-metrics.conf;
+}
+
 server {
     listen 80;
     server_name grafana.video.example.org;
