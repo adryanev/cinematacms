@@ -362,6 +362,9 @@ install_grafana_provisioning() {
     || fail "Grafana must be installed before provisioning the dashboard"
   install -d -m 0755 /etc/grafana/provisioning/datasources /etc/grafana/provisioning/dashboards
   install -d -m 0755 /var/lib/grafana/dashboards/cinematacms
+  # The starter installer uses the same dashboard directory. Retire its provider
+  # before installing ours so Grafana does not provision each file twice.
+  rm -f /etc/grafana/provisioning/dashboards/cinematacms.yml
   render_file "${TEMPLATE_DIR}/grafana-datasources.yml" /etc/grafana/provisioning/datasources/cinematacms-observability.yml
   chown root:grafana /etc/grafana/provisioning/datasources/cinematacms-observability.yml
   chmod 0640 /etc/grafana/provisioning/datasources/cinematacms-observability.yml
@@ -422,7 +425,7 @@ start_services() {
 
 wait_http() {
   local url="$1"
-  for _ in $(seq 1 30); do
+  for _ in $(seq 1 90); do
     curl -fsS "$url" >/dev/null && return
     sleep 1
   done

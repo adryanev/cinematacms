@@ -74,6 +74,7 @@ class FullStackContractTests(unittest.TestCase):
         self.assertIn("http://127.0.0.1:${APP_METRICS_PORT}/metrics", installer)
         self.assertIn("require_managed_application_mode", installer)
         self.assertIn("the local starter Prometheus service is active", installer)
+        self.assertIn("rm -f /etc/grafana/provisioning/dashboards/cinematacms.yml", installer)
 
     def test_trace_pipeline_keeps_public_incident_context(self):
         collector = (OBSERVABILITY / "templates/otelcol.yml").read_text()
@@ -200,6 +201,7 @@ class FullStackContractTests(unittest.TestCase):
         installer = (OBSERVABILITY / "install.sh").read_text()
 
         self.assertIn("grafana-server", installer)
+        self.assertIn("seq 1 90", installer)
         self.assertIn("/api/dashboards/uid/cinematacms-observability", installer)
         self.assertIn("/api/dashboards/uid/cinematacms-logs", installer)
         self.assertIn("/api/dashboards/uid/cinematacms-traces", installer)
