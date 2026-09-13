@@ -1,6 +1,6 @@
 extensions:
   file_storage:
-    directory: /var/lib/otelcol-contrib/cinemata
+    directory: /var/lib/otelcol-contrib/cinematacms
     create_directory: true
     fsync: true
   health_check:

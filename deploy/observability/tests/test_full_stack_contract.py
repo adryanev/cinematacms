@@ -25,6 +25,8 @@ class FullStackContractTests(unittest.TestCase):
         self.assertIn("delta_to_cumulative", config)
         self.assertNotIn("deltattocumulative", config)
         self.assertIn("file_storage", config)
+        self.assertIn("directory: /var/lib/otelcol-contrib/cinematacms", config)
+        self.assertNotIn("/var/lib/otelcol-contrib/cinemata\n", config)
         self.assertIn("sending_queue", config)
         self.assertIn("otlp_http/victoriametrics", config)
         self.assertIn("/opentelemetry/v1/metrics", config)
