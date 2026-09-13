@@ -100,7 +100,7 @@
       "title": "Error and critical logs",
       "datasource": {"type": "victoriametrics-logs-datasource", "uid": "victorialogs"},
       "gridPos": {"h": 5, "w": 6, "x": 6, "y": 56},
-      "targets": [{"refId": "A", "editorMode": "code", "expr": "(${filter:raw}) AND severity_text:~\"ERROR|FATAL\" | count()", "queryType": "stats"}],
+      "targets": [{"refId": "A", "editorMode": "code", "expr": "(${filter:raw}) AND severity_text:~\"ERROR|CRITICAL|FATAL\" | count()", "queryType": "stats"}],
       "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "value", "graphMode": "area", "justifyMode": "auto"}
     },
     {
@@ -132,7 +132,7 @@
       "title": "Errors and critical logs",
       "datasource": {"type": "victoriametrics-logs-datasource", "uid": "victorialogs"},
       "gridPos": {"h": 10, "w": 24, "x": 0, "y": 72},
-      "targets": [{"refId": "A", "editorMode": "code", "expr": "(${filter:raw}) AND severity_text:~\"ERROR|FATAL\"", "maxLines": 500, "queryType": "instant"}],
+      "targets": [{"refId": "A", "editorMode": "code", "expr": "(${filter:raw}) AND severity_text:~\"ERROR|CRITICAL|FATAL\"", "maxLines": 500, "queryType": "instant"}],
       "options": {"showTime": true, "showLabels": true, "showCommonLabels": false, "wrapLogMessage": true, "prettifyLogMessage": false, "enableLogDetails": true, "dedupStrategy": "none", "sortOrder": "Descending"}
     },
     {

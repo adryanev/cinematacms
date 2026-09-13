@@ -116,6 +116,19 @@ except ValueError:
     is_loopback = parsed.hostname == "localhost"
 raise SystemExit(0 if is_https or (parsed.scheme == "http" and is_loopback) else 1)
 PY
+  python3 - "$GRAFANA_URL" <<'PY' \
+    || fail "GRAFANA_URL must use loopback HTTP or HTTPS"
+import ipaddress
+import sys
+from urllib.parse import urlparse
+
+parsed = urlparse(sys.argv[1])
+try:
+    is_loopback = ipaddress.ip_address(parsed.hostname or "").is_loopback
+except ValueError:
+    is_loopback = parsed.hostname == "localhost"
+raise SystemExit(0 if parsed.scheme == "https" or (parsed.scheme == "http" and is_loopback) else 1)
+PY
 }
 
 require_managed_application_mode() {
@@ -266,32 +279,40 @@ write_environment_files() {
     printf 'LOGS_RETENTION=%q\n' "$LOGS_RETENTION"
     printf 'TRACES_RETENTION=%q\n' "$TRACES_RETENTION"
   } > "${ETC_DIR}/stack.env"
-  {
-    printf 'DATA_SOURCE_NAME=%q\n' "$POSTGRES_DSN"
-    printf 'REDIS_ADDR=%q\n' "$REDIS_URL"
-    printf 'CE_BROKER_URL=%q\n' "$REDIS_URL"
-  } > "${ETC_DIR}/exporters.env"
+  printf 'DATA_SOURCE_NAME=%q\n' "$POSTGRES_DSN" > "${ETC_DIR}/postgres-exporter.env"
+  printf 'REDIS_ADDR=%q\n' "$REDIS_URL" > "${ETC_DIR}/redis-exporter.env"
+  printf 'CE_BROKER_URL=%q\n' "$REDIS_URL" > "${ETC_DIR}/celery-exporter.env"
+  rm -f "${ETC_DIR}/exporters.env"
   chown root:otelcol-contrib "${ETC_DIR}/stack.env"
-  chown root:cinematacms-observability "${ETC_DIR}/exporters.env"
-  chmod 0640 "${ETC_DIR}/stack.env" "${ETC_DIR}/exporters.env"
+  chown root:cinematacms-postgres-exporter "${ETC_DIR}/postgres-exporter.env"
+  chown root:cinematacms-redis-exporter "${ETC_DIR}/redis-exporter.env"
+  chown root:cinematacms-celery-exporter "${ETC_DIR}/celery-exporter.env"
+  chmod 0640 "${ETC_DIR}/stack.env" "${ETC_DIR}"/*-exporter.env
 }
 
 install_configuration() {
   getent group cinematacms-observability >/dev/null 2>&1 || groupadd --system cinematacms-observability
   id -u cinematacms-observability >/dev/null 2>&1 \
     || useradd --system --gid cinematacms-observability --home-dir /var/lib/cinematacms-observability --shell /usr/sbin/nologin cinematacms-observability
+  local identity
+  for identity in cinematacms-alertmanager cinematacms-postgres-exporter cinematacms-redis-exporter cinematacms-celery-exporter; do
+    getent group "$identity" >/dev/null 2>&1 || groupadd --system "$identity"
+    id -u "$identity" >/dev/null 2>&1 \
+      || useradd --system --gid "$identity" --home-dir /nonexistent --shell /usr/sbin/nologin "$identity"
+  done
   usermod -a -G systemd-journal otelcol-contrib
   usermod -a -G cinematacms-observability otelcol-contrib
   getent group adm >/dev/null 2>&1 && usermod -a -G adm otelcol-contrib
   prepare_application_log
   prepare_service_logs
   install -d -m 0755 "$BIN_DIR"
-  install -d -m 0750 -o root -g cinematacms-observability "$ETC_DIR"
+  install -d -m 0755 -o root -g root "$ETC_DIR"
   install -d -m 0750 -o otelcol-contrib -g otelcol-contrib /var/lib/otelcol-contrib/cinematacms
   local directory
-  for directory in victoriametrics victorialogs victoriatraces alertmanager; do
+  for directory in victoriametrics victorialogs victoriatraces; do
     install -d -m 0750 -o cinematacms-observability -g cinematacms-observability "/var/lib/${directory}"
   done
+  install -d -m 0750 -o cinematacms-alertmanager -g cinematacms-alertmanager /var/lib/alertmanager
   write_environment_files
   install -m 0640 -o root -g otelcol-contrib "${TEMPLATE_DIR}/otelcol.yml" "${ETC_DIR}/otelcol.yml"
   install -d -m 0755 "${ETC_DIR}/rules"
@@ -299,7 +320,7 @@ install_configuration() {
   install -m 0644 "${TEMPLATE_DIR}/alerts-tests.yml" "${ETC_DIR}/rules/alerts-tests.yml"
   install -m 0644 "${SCRIPT_DIR}/celery_exporter_runner.py" "${INSTALL_ROOT}/celery_exporter_runner.py"
   render_file "${TEMPLATE_DIR}/alertmanager.yml" "${ETC_DIR}/alertmanager.yml"
-  chown root:cinematacms-observability "${ETC_DIR}/alertmanager.yml"
+  chown root:cinematacms-alertmanager "${ETC_DIR}/alertmanager.yml"
   chmod 0640 "${ETC_DIR}/alertmanager.yml"
 
   local template
@@ -327,6 +348,7 @@ prepare_application_log() {
 
 prepare_service_logs() {
   local filename path
+  install -d -m 0750 -o www-data -g cinematacms-observability "$APP_SERVICE_LOG_DIR"
   for filename in errorlog.txt celery_long.log celery_short.log celery_whisper.log celery_email.log beatcelery_beat.log; do
     path="${APP_SERVICE_LOG_DIR}/${filename}"
     touch "$path"
@@ -430,7 +452,7 @@ start_services() {
 wait_http() {
   local url="$1"
   for _ in $(seq 1 90); do
-    curl -fsS "$url" >/dev/null && return
+    curl --connect-timeout 5 --max-time 15 -fsS "$url" >/dev/null && return
     sleep 1
   done
   fail "timed out waiting for $url"
@@ -438,15 +460,15 @@ wait_http() {
 
 assert_endpoint_contains() {
   local url="$1" pattern="$2" message="$3" response
-  response="$(curl -fsS "$url")"
+  response="$(curl --connect-timeout 5 --max-time 15 -fsS "$url")"
   grep -q "$pattern" <<<"$response" || fail "$message"
 }
 
 grafana_curl() {
   if [[ -n "$GRAFANA_API_TOKEN" ]]; then
-    curl -fsS -H "Authorization: Bearer ${GRAFANA_API_TOKEN}" "$@"
+    curl --connect-timeout 5 --max-time 15 -fsS -H "Authorization: Bearer ${GRAFANA_API_TOKEN}" "$@"
   else
-    curl -fsS "$@"
+    curl --connect-timeout 5 --max-time 15 -fsS "$@"
   fi
 }
 
@@ -454,7 +476,7 @@ verify_grafana_provisioning() {
   local anonymous_status
   printf 'Verifying Grafana provisioning...\n'
   wait_http "${GRAFANA_URL}/api/health"
-  anonymous_status="$(curl -sS -o /dev/null -w '%{http_code}' "${GRAFANA_URL}/api/dashboards/uid/cinematacms-incidents")"
+  anonymous_status="$(curl --connect-timeout 5 --max-time 15 -sS -o /dev/null -w '%{http_code}' "${GRAFANA_URL}/api/dashboards/uid/cinematacms-incidents")"
   [[ "$anonymous_status" == "401" || "$anonymous_status" == "403" ]] \
     || fail "anonymous Grafana dashboard access must be disabled"
   grafana_curl "${GRAFANA_URL}/api/dashboards/uid/cinematacms-observability" \
@@ -484,7 +506,7 @@ verify_metric_ingestion() {
   printf 'Verifying metric ingestion...\n'
   local names
   for _ in $(seq 1 12); do
-    names="$(curl -fsS "http://127.0.0.1:${VICTORIAMETRICS_PORT}/api/v1/label/__name__/values")"
+    names="$(curl --connect-timeout 5 --max-time 15 -fsS "http://127.0.0.1:${VICTORIAMETRICS_PORT}/api/v1/label/__name__/values")"
     if grep -q 'cinematacms_' <<<"$names" \
       && grep -q 'otelcol_' <<<"$names" \
       && grep -q 'system.cpu.time' <<<"$names" \

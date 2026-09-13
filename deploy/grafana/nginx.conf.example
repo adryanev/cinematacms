@@ -1,7 +1,6 @@
 server {
     listen 80;
     server_name grafana.video.example.org;
-    include /etc/nginx/snippets/cinematacms-metrics.conf;
     return 301 https://$host$request_uri;
 }
 
@@ -13,7 +12,6 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/grafana.video.example.org/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-    include /etc/nginx/snippets/cinematacms-metrics.conf;
 
     location / {
         proxy_set_header Host $host;

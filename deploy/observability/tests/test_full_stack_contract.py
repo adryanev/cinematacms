@@ -60,6 +60,12 @@ class FullStackContractTests(unittest.TestCase):
         self.assertIn("printf 'APP_SERVICE_LOG_DIR=%q\\n'", installer)
         self.assertIn("prepare_service_logs", installer)
         self.assertIn("errorlog.txt celery_long.log celery_short.log", installer)
+        self.assertIn('install -d -m 0750 -o www-data -g cinematacms-observability "$APP_SERVICE_LOG_DIR"', installer)
+        self.assertIn("--connect-timeout 5 --max-time 15", installer)
+        self.assertIn("GRAFANA_URL must use loopback HTTP or HTTPS", installer)
+        self.assertIn("postgres-exporter.env", installer)
+        self.assertIn("redis-exporter.env", installer)
+        self.assertIn("celery-exporter.env", installer)
 
     def test_application_metrics_listener_is_loopback_only(self):
         nginx = (OBSERVABILITY / "templates/nginx-app-metrics.conf").read_text()
@@ -150,6 +156,9 @@ class FullStackContractTests(unittest.TestCase):
         self.assertNotIn('avg(rate({__name__="system.cpu.time"', dashboard)
         self.assertIn("node_filesystem_avail_bytes", dashboard)
         self.assertIn("or vector(0)", dashboard)
+        alerts = (OBSERVABILITY / "templates/alerts.yml").read_text()
+        self.assertIn("absent_over_time(cinematacms_scheduled_job_last_success_timestamp_seconds[15m])", alerts)
+        self.assertIn("clamp_min(sum(pg_settings_max_connections), 1)", alerts)
 
     def test_dashboard_and_alert_queries_use_contracted_metric_names(self):
         coverage = json.loads((ROOT / "config/observability/coverage.json").read_text())
@@ -252,6 +261,7 @@ class FullStackContractTests(unittest.TestCase):
         self.assertIn('state=\\"idle\\"}[$__rate_interval])) / clamp_min(sum(rate(', dashboard)
         self.assertNotIn("system.paging.operations", dashboard)
         self.assertIn('mountpoint=\\"/\\"', dashboard)
+        self.assertIn("scalar(clamp_min(sum(rate", dashboard)
 
         collector = (OBSERVABILITY / "templates/otelcol.yml").read_text()
         self.assertIn("system.filesystem.utilization:", collector)
@@ -361,6 +371,7 @@ class FullStackContractTests(unittest.TestCase):
             self.assertTrue(any(service_filter in expression for expression in expressions))
             self.assertTrue(all("${filter:raw}" in expression for expression in expressions))
         self.assertEqual(parsed["refresh"], "5s")
+        self.assertIn("ERROR|CRITICAL|FATAL", dashboard)
         self.assertIn("__enter_value__", dashboard)
         for context in ("$task_id", "$delivery_uuid", "$trace_id", "$recipient_ref", "$actor_ref"):
             self.assertIn(context, dashboard)
