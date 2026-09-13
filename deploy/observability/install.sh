@@ -30,6 +30,7 @@ Usage: sudo deploy/observability/install.sh [--env FILE] [--verify-only]
 Installs and verifies all observability phases in one stack:
 metrics, logs, external exporters, traces, alerting, and Grafana provisioning.
 Production-specific values belong in a root-readable environment file.
+Setup guide: https://github.com/EngageMedia-video/cinematacms/wiki/Self-hosted-Observability
 EOF
 }
 
