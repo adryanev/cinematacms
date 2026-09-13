@@ -75,6 +75,7 @@ class FullStackContractTests(unittest.TestCase):
         self.assertIn("require_managed_application_mode", installer)
         self.assertIn("the local starter Prometheus service is active", installer)
         self.assertIn("rm -f /etc/grafana/provisioning/dashboards/cinematacms.yml", installer)
+        self.assertIn("rm -f /etc/grafana/provisioning/datasources/cinematacms.yml", installer)
 
     def test_trace_pipeline_keeps_public_incident_context(self):
         collector = (OBSERVABILITY / "templates/otelcol.yml").read_text()

@@ -365,6 +365,9 @@ install_grafana_provisioning() {
   # The starter installer uses the same dashboard directory. Retire its provider
   # before installing ours so Grafana does not provision each file twice.
   rm -f /etc/grafana/provisioning/dashboards/cinematacms.yml
+  # The starter Prometheus datasource is also marked as default. Remove its
+  # provisioning file before VictoriaMetrics becomes the default datasource.
+  rm -f /etc/grafana/provisioning/datasources/cinematacms.yml
   render_file "${TEMPLATE_DIR}/grafana-datasources.yml" /etc/grafana/provisioning/datasources/cinematacms-observability.yml
   chown root:grafana /etc/grafana/provisioning/datasources/cinematacms-observability.yml
   chmod 0640 /etc/grafana/provisioning/datasources/cinematacms-observability.yml
