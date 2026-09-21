@@ -531,7 +531,18 @@ class ManualCaptureCoverageTests(SimpleTestCase):
                         isinstance(call.func, ast.Attribute)
                         and isinstance(call.func.value, ast.Name)
                         and call.func.value.id.endswith("logger")
-                        and call.func.attr == "exception"
+                        and (
+                            call.func.attr == "exception"
+                            or (
+                                call.func.attr == "error"
+                                and any(
+                                    keyword.arg == "exc_info"
+                                    and isinstance(keyword.value, ast.Constant)
+                                    and keyword.value.value is True
+                                    for keyword in call.keywords
+                                )
+                            )
+                        )
                         for call in calls
                     )
                     captures = any(

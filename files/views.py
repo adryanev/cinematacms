@@ -1044,6 +1044,7 @@ def cleanup_hls_directory_for_media(media):
             f"Failed to remove HLS directory for media {media.friendly_token} (hls_file={media.hls_file}): {e}",
             exc_info=True,
         )
+        capture_unexpected_exception(e)
 
 
 @login_required
@@ -1131,6 +1132,7 @@ def edit_media(request):
                             f"Failed to assign new media file from {temp_file_path} for media {media.friendly_token}: {e}",
                             exc_info=True,
                         )
+                        capture_unexpected_exception(e)
                         messages.add_message(request, messages.ERROR, "Failed to assign new media file")
                         return HttpResponseRedirect(media.get_absolute_url())
 
@@ -1167,6 +1169,7 @@ def edit_media(request):
                                 f"Failed to remove original media file {original_file_path} for media {media.friendly_token}: {e}",
                                 exc_info=True,
                             )
+                            capture_unexpected_exception(e)
 
                     # Delete old encodings and HLS files
                     from files.models import Encoding
@@ -1182,6 +1185,7 @@ def edit_media(request):
                                 f"for encoding {encoding.id} of media {media.friendly_token}: {e}",
                                 exc_info=True,
                             )
+                            capture_unexpected_exception(e)
                     old_encodings.delete()
 
                     # Delete old HLS files if they exist (with directory traversal protection).
@@ -1225,6 +1229,7 @@ def edit_media(request):
                                 f"Failed to remove preview file {media.preview_file_path} for media {media.friendly_token}: {e}",
                                 exc_info=True,
                             )
+                            capture_unexpected_exception(e)
 
                     # Wrap DB updates in transaction.atomic() for consistency
                     try:
@@ -1254,6 +1259,7 @@ def edit_media(request):
                             f"Failed to update media {media.friendly_token} during re-encode preparation: {e}",
                             exc_info=True,
                         )
+                        capture_unexpected_exception(e)
                         messages.add_message(
                             request,
                             messages.ERROR,
@@ -1628,6 +1634,7 @@ class MediaDetail(APIView):
 
             logger = logging.getLogger(__name__)
             logger.error(f"Error retrieving media {friendly_token}: {str(e)}", exc_info=True)
+            capture_unexpected_exception(e)
             return Response(
                 {"detail": "error retrieving media"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1786,6 +1793,7 @@ class MediaActions(APIView):
 
             logger = logging.getLogger(__name__)
             logger.error(f"Error retrieving media {friendly_token}: {str(e)}", exc_info=True)
+            capture_unexpected_exception(e)
             return Response(
                 {"detail": "error retrieving media"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -2740,6 +2748,7 @@ class CommentDetail(APIView):
 
             logger = logging.getLogger(__name__)
             logger.error(f"Error retrieving media {friendly_token}: {str(e)}", exc_info=True)
+            capture_unexpected_exception(e)
             return Response(
                 {"detail": "error retrieving media"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

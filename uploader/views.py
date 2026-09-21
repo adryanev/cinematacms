@@ -9,6 +9,7 @@ from django.core.files import File
 from django.http import JsonResponse
 from django.views import generic
 
+from cms.error_tracking import capture_unexpected_exception
 from cms.permissions import is_trusted_uploader, user_allowed_to_upload
 from files.helpers import cleanup_temp_upload_files, rm_file
 from files.models import Media
@@ -208,6 +209,7 @@ class MediaFileUpdateView(generic.FormView):
                 f"Failed to get file size for uploaded file {media_file} for media {self.media.friendly_token}: {e}",
                 exc_info=True,
             )
+            capture_unexpected_exception(e)
 
         # DEFER PERSISTENCE: Do NOT save media_file yet
         # Instead, store the temporary file path in session
@@ -240,6 +242,7 @@ class MediaFileUpdateView(generic.FormView):
                         f"Failed to get original media file path for media {self.media.friendly_token}: {e}",
                         exc_info=True,
                     )
+                    capture_unexpected_exception(e)
             session_data["original_file_path"] = original_file_path
 
         # Store the new upload info

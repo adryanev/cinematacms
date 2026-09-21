@@ -1701,6 +1701,7 @@ def cleanup_orphaned_draft_media():
         except Exception as exc:
             error_msg = f"Failed to delete orphaned draft media {token}: {exc}"
             logger.error(error_msg, exc_info=True)
+            capture_unexpected_exception(exc)
             errors.append(error_msg)
 
     logger.info("cleanup_orphaned_draft_media removed %s orphaned media rows", deleted)
