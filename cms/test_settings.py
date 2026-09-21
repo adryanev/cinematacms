@@ -34,10 +34,16 @@ DJANGO_VITE = {
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        "otel_trace": {
+            "()": "cms.observability.OpenTelemetryLogFilter",
+        },
+    },
     "handlers": {
         "console": {
             "level": "ERROR",
             "class": "logging.StreamHandler",
+            "filters": ["otel_trace"],
         },
     },
     "loggers": {

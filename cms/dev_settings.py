@@ -115,6 +115,11 @@ LOGS_DIR = os.path.join(BASE_DIR, "logs")
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        "otel_trace": {
+            "()": "cms.observability.OpenTelemetryLogFilter",
+        },
+    },
     "formatters": {
         "verbose": {
             "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
@@ -130,12 +135,14 @@ LOGGING = {
             "level": "DEBUG",
             "class": "logging.StreamHandler",
             "formatter": "simple",
+            "filters": ["otel_trace"],
         },
         "file": {
             "level": "DEBUG",
             "class": "logging.FileHandler",
             "filename": os.path.join(LOGS_DIR, "debug.log"),
             "formatter": "verbose",
+            "filters": ["otel_trace"],
         },
     },
     "root": {

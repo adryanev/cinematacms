@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
+from celery.exceptions import TimeoutError as CeleryTimeoutError
 from django.conf import settings
 from django.core.cache import cache
 from django.core.management import call_command
@@ -22,6 +23,21 @@ from cms.error_tracking import (
 )
 from cms.observability import OpenTelemetryLogFilter, sanitize_django_request_span
 from cms.urls import _error_tracking_diagnostic_rate_limited, error_tracking_diagnostic
+
+
+class LoggingPrivacyConfigurationTests(SimpleTestCase):
+    def test_overriding_logging_handlers_attach_the_sanitizing_filter(self):
+        for module_name in ("cms.dev_settings", "cms.test_settings"):
+            with self.subTest(module_name=module_name):
+                logging_config = importlib.import_module(module_name).LOGGING
+
+                self.assertEqual(
+                    logging_config["filters"]["otel_trace"]["()"],
+                    "cms.observability.OpenTelemetryLogFilter",
+                )
+                for handler_name, handler in logging_config["handlers"].items():
+                    with self.subTest(module_name=module_name, handler_name=handler_name):
+                        self.assertIn("otel_trace", handler.get("filters", []))
 
 
 class ErrorTrackingPrivacyTests(SimpleTestCase):
@@ -414,6 +430,7 @@ class VerifyErrorTrackingCommandTests(SimpleTestCase):
             patch("files.management.commands.verify_error_tracking.add_two.delay") as dispatch,
         ):
             dispatch.return_value.id = "diagnostic-task-id"
+            dispatch.return_value.get.return_value = TypeError("unsupported operand type(s) for +: 'int' and 'str'")
             call_command("verify_error_tracking", stdout=output)
 
         request = post.call_args.args[0]
@@ -422,9 +439,36 @@ class VerifyErrorTrackingCommandTests(SimpleTestCase):
         self.assertEqual(request.headers["Authorization"], "Bearer diagnostic-token")
         self.assertEqual(request.data, b"")
         dispatch.assert_called_once_with(1, "diagnostic")
+        dispatch.return_value.get.assert_called_once_with(timeout=60, propagate=False)
         self.assertIn("web_requests=1", output.getvalue())
         self.assertIn("celery_task_id=diagnostic-task-id", output.getvalue())
         self.assertNotIn("diagnostic-token", output.getvalue())
+
+    @enabled_settings
+    def test_command_rejects_celery_success_timeout_and_unexpected_failure(self):
+        http_error = HTTPError(
+            "http://127.0.0.1/internal/observability/error-probe",
+            500,
+            "Internal Server Error",
+            {},
+            None,
+        )
+        cases = (
+            ("success", 3, None, "unexpectedly succeeded"),
+            ("timeout", None, CeleryTimeoutError(), "timed out"),
+            ("unexpected failure", RuntimeError("diagnostic boom"), None, "unexpected RuntimeError"),
+        )
+
+        for name, result, side_effect, expected_message in cases:
+            with self.subTest(name=name):
+                with (
+                    patch("files.management.commands.verify_error_tracking.urlopen", side_effect=http_error),
+                    patch("files.management.commands.verify_error_tracking.add_two.delay") as dispatch,
+                ):
+                    dispatch.return_value.get.return_value = result
+                    dispatch.return_value.get.side_effect = side_effect
+                    with self.assertRaisesRegex(CommandError, expected_message):
+                        call_command("verify_error_tracking")
 
     @enabled_settings
     def test_command_caps_repeat_at_fifty(self):
