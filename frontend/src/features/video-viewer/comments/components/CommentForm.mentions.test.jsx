@@ -10,7 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Tribute.js keys off the legacy `keyCode`, which jsdom/user-event leave at 0
 // but every real browser still populates. Fire Enter explicitly so the test
 // exercises the same path a browser takes.
-const pressEnter = (element) => fireEvent.keyDown(element, { key: 'Enter', keyCode: 13, which: 13 });
+const pressEnter = (element, options = {}) =>
+	fireEvent.keyDown(element, { key: 'Enter', keyCode: 13, which: 13, ...options });
 
 const submitMutate = vi.fn();
 
@@ -85,7 +86,7 @@ describe('CommentForm @mentions', () => {
 		await waitFor(() => expect(input).toHaveValue('@alice '));
 
 		await user.keyboard('nice work');
-		pressEnter(input);
+		pressEnter(input, { ctrlKey: true });
 
 		expect(submitMutate).toHaveBeenCalledWith('@alice nice work', expect.anything());
 	});
@@ -124,15 +125,29 @@ describe('CommentForm @mentions', () => {
 		await waitFor(() => expect(input).toHaveValue(''));
 	});
 
-	it('Enter still submits when no mention menu is open', async () => {
+	it('Ctrl+Enter still submits when no mention menu is open', async () => {
 		const user = userEvent.setup();
 		render(<CommentForm friendlyToken="tok" />);
 
 		const input = screen.getByLabelText('Leave a comment');
 		await user.click(input);
 		await user.keyboard('plain comment');
-		pressEnter(input);
+		pressEnter(input, { ctrlKey: true });
 
 		expect(submitMutate).toHaveBeenCalledWith('plain comment', expect.anything());
+	});
+
+	it('Ctrl+Enter picks the highlighted person rather than posting mid-mention', async () => {
+		const user = userEvent.setup();
+		render(<CommentForm friendlyToken="tok" />);
+		const input = screen.getByLabelText('Leave a comment');
+
+		await user.click(input);
+		await user.keyboard('@al');
+		await waitFor(() => expect(screen.getByText('Alice Anderson')).toBeInTheDocument());
+
+		pressEnter(input, { ctrlKey: true });
+
+		expect(submitMutate).not.toHaveBeenCalled();
 	});
 });
