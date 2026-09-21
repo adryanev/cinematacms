@@ -207,19 +207,27 @@ class ErrorTrackingConfigurationTests(SimpleTestCase):
 
     def test_wsgi_initializes_error_tracking_before_building_the_application(self):
         calls = []
+        original_wsgi = sys.modules.pop("cms.wsgi", None)
+        if original_wsgi is None:
+            self.addCleanup(sys.modules.pop, "cms.wsgi", None)
+        else:
+            self.addCleanup(sys.modules.__setitem__, "cms.wsgi", original_wsgi)
         with (
             patch("cms.error_tracking.configure_error_tracking", side_effect=lambda: calls.append("error_tracking")),
             patch("cms.observability.configure_django_observability", side_effect=lambda: calls.append("otel")),
             patch("django.core.wsgi.get_wsgi_application", side_effect=lambda: calls.append("application") or Mock()),
         ):
-            sys.modules.pop("cms.wsgi", None)
             importlib.import_module("cms.wsgi")
 
         self.assertEqual(calls, ["error_tracking", "otel", "application"])
 
     def test_celery_initializes_error_tracking_when_the_application_module_loads(self):
+        original_celery = sys.modules.pop("cms.celery", None)
+        if original_celery is None:
+            self.addCleanup(sys.modules.pop, "cms.celery", None)
+        else:
+            self.addCleanup(sys.modules.__setitem__, "cms.celery", original_celery)
         with patch("cms.error_tracking.configure_error_tracking") as initialize:
-            sys.modules.pop("cms.celery", None)
             importlib.import_module("cms.celery")
 
         initialize.assert_called_once_with()
@@ -520,7 +528,7 @@ class ManualCaptureCoverageTests(SimpleTestCase):
             for source_path in (project_root / package).rglob("*.py"):
                 if "tests" in source_path.parts or "migrations" in source_path.parts:
                     continue
-                tree = ast.parse(source_path.read_text())
+                tree = ast.parse(source_path.read_text(encoding="utf-8"))
                 for handler in (node for node in ast.walk(tree) if isinstance(node, ast.ExceptHandler)):
                     if not isinstance(handler.type, ast.Name) or handler.type.id != "Exception":
                         continue
