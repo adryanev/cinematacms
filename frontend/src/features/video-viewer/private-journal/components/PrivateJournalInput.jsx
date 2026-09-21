@@ -23,7 +23,10 @@ export function PrivateJournalInput({ value, onChange, onSubmit, disabled = fals
 				disabled={disabled}
 				onChange={(event) => onChange(event.target.value)}
 				onKeyDown={(event) => {
-					if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+					if (event.key !== 'Enter' || event.isComposing || event.keyCode === 229) return;
+					// Ctrl+Enter and Cmd+Enter add the note. A bare Enter falls
+					// through to the textarea so it starts a new line.
+					if (event.ctrlKey || event.metaKey) {
 						event.preventDefault();
 						onSubmit();
 					}
