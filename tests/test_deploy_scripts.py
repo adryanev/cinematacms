@@ -700,6 +700,12 @@ class ApplyReleaseConfigTests(unittest.TestCase):
         self.assertIn("CINEMATA_PROXY=cloudflare", config)
         self.assertIn("CINEMATA_OBSERVABILITY=local", config)
         self.assertTrue((self.deploy_root / "etc/nginx/snippets/cinematacms-metrics.conf").is_file())
+        observability_snippet = (self.deploy_root / "etc/nginx/snippets/cinematacms-metrics.conf").read_text()
+        self.assertIn("location = /internal/observability/error-probe", observability_snippet)
+        self.assertIn("limit_except POST", observability_snippet)
+        self.assertIn("allow 127.0.0.1;", observability_snippet)
+        self.assertIn("allow ::1;", observability_snippet)
+        self.assertIn("deny all;", observability_snippet)
         self.assertTrue((self.deploy_root / "etc/nginx/conf.d/cloudflare_real_ip.conf").is_file())
         self.assertTrue((self.deploy_root / "etc/cinematacms/prometheus.yml").is_file())
         self.assertTrue((self.deploy_root / "etc/cinematacms/otelcol-contrib.yml").is_file())
@@ -953,6 +959,14 @@ class ApplyReleaseConfigTests(unittest.TestCase):
             "DJANGO_ADMIN_URL = 'private-admin/'\n"
             "MAINTENANCE_MODE = True\n"
             "RECAPTCHA_PRIVATE_KEY = 'private-placeholder'\n"
+            "SENTRY_DSN = 'http://public@127.0.0.1:8001/1'\n"
+            "SENTRY_ENVIRONMENT = 'staging'\n"
+            "SENTRY_RELEASE = 'cinematacms@test'\n"
+            "SENTRY_SAMPLE_RATE = 1.0\n"
+            "ERROR_TRACKING_DIAGNOSTICS_ENABLED = False\n"
+            "ERROR_TRACKING_DIAGNOSTICS_TOKEN = 'diagnostic-placeholder'\n"
+            "ERROR_TRACKING_DIAGNOSTICS_RATE_LIMIT = 50\n"
+            "ERROR_TRACKING_DIAGNOSTICS_RATE_WINDOW_SECONDS = 3600\n"
             "SECURE_HSTS_SECONDS = 31536000\n"
             "UI_VARIANT_ALLOWED = ['legacy', 'revamp']\n"
             "UPLOAD_MAX_SIZE = 123456\n"
@@ -1008,6 +1022,14 @@ class ApplyReleaseConfigTests(unittest.TestCase):
         self.assertIn("DJANGO_ADMIN_URL=private-admin/", migrated)
         self.assertIn("MAINTENANCE_MODE=true", migrated)
         self.assertIn("RECAPTCHA_PRIVATE_KEY=private-placeholder", migrated)
+        self.assertIn("SENTRY_DSN=http://public@127.0.0.1:8001/1", migrated)
+        self.assertIn("SENTRY_ENVIRONMENT=staging", migrated)
+        self.assertIn("SENTRY_RELEASE=cinematacms@test", migrated)
+        self.assertIn("SENTRY_SAMPLE_RATE=1.0", migrated)
+        self.assertIn("ERROR_TRACKING_DIAGNOSTICS_ENABLED=false", migrated)
+        self.assertIn("ERROR_TRACKING_DIAGNOSTICS_TOKEN=diagnostic-placeholder", migrated)
+        self.assertIn("ERROR_TRACKING_DIAGNOSTICS_RATE_LIMIT=50", migrated)
+        self.assertIn("ERROR_TRACKING_DIAGNOSTICS_RATE_WINDOW_SECONDS=3600", migrated)
         self.assertIn("SECURE_HSTS_SECONDS=31536000", migrated)
         self.assertIn("UI_VARIANT_ALLOWED=legacy,revamp", migrated)
         self.assertIn("UPLOAD_MAX_SIZE=123456", migrated)

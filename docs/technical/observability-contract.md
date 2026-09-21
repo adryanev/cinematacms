@@ -43,6 +43,44 @@ authorization data, secrets, passwords, filenames, or URLs. Restricted email
 spans may contain only the delivery UUID, the recipient reference, the email
 kind, and the attempt number.
 
+## Error tracking
+
+CinemataCMS uses the Sentry protocol for exception events. The application
+does not select or deploy an event store. A deployment owns the DSN, projects,
+retention, storage, backups, alerts, and access controls.
+
+Error tracking is off when `SENTRY_DSN` is empty. `SENTRY_ENVIRONMENT` separates
+deployment environments, and `SENTRY_RELEASE` identifies the deployed build.
+`SENTRY_SAMPLE_RATE` controls error-event sampling. The integration does not
+send logs, traces, profiles, sessions, or default personal data.
+
+The sanitizer removes request and transaction data, headers, cookies, query
+strings, user data, breadcrumbs, performance spans, custom fingerprints, frame
+variables, attachments, module inventories, SQL statements, email addresses,
+and raw IP addresses. It keeps the exception type, a sanitized exception
+message, stack locations, the release, the environment, the service role, and
+trace identifiers. Native exception grouping remains enabled.
+
+Django and Celery report exceptions that escape their execution boundaries.
+Code that catches an unexpected `Exception` and returns a degraded result must
+call `cms.error_tracking.capture_unexpected_exception()`. Expected validation,
+permission, retry, media-processing, SMTP, rate-limit, and dependency outcomes
+remain in the existing metrics and logs.
+
+The permanent diagnostic endpoint is
+`POST /internal/observability/error-probe`. It returns `404` unless
+`ERROR_TRACKING_DIAGNOSTICS_ENABLED` is true and `SENTRY_ENVIRONMENT` is
+`staging`. Nginx restricts the endpoint to loopback clients. Django also checks
+the client address, the method, `ERROR_TRACKING_DIAGNOSTICS_TOKEN`, and a
+fail-closed rate limit of at most 50 requests per hour. The endpoint ignores
+the request body and raises a fixed exception.
+
+Run `python manage.py verify_error_tracking` on a staging host to check both
+the web process and the `long_tasks` Celery queue. The command posts through
+the loopback Nginx route and dispatches the existing `sum_two_numbers_two`
+diagnostic task. `--repeat` accepts values from 1 through 50. Keep diagnostics
+disabled after the check. A deployment should retain error events for 30 days.
+
 ## Scheduled jobs
 
 `cms.scheduled_jobs.SCHEDULED_JOBS` defines each job name, cadence, owner, and absence window. Scheduled-job metrics keep last-started and last-success timestamps separate. A skip does not update last success.

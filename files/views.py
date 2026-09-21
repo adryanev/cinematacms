@@ -39,6 +39,7 @@ from rest_framework.views import APIView
 
 from actions.models import USER_MEDIA_ACTIONS, MediaAction
 from cms.custom_pagination import FastPaginationWithoutCount, SmallPreviewPagination
+from cms.error_tracking import capture_unexpected_exception
 from cms.permissions import (
     IsAuthorizedToAdd,
     IsUserOrEditor,
@@ -280,8 +281,9 @@ def _attach_hero_playback_to_first_featured_item(items, request=None):
             },
             *item_list[1:],
         ]
-    except Exception:
+    except Exception as error:
         logger.exception("Failed to attach hero playback to featured media %s", friendly_token)
+        capture_unexpected_exception(error)
         return item_list
 
 
@@ -343,8 +345,9 @@ def _get_home_initial_data(request):
             set_cached_result(recommended_cache_key, home_initial_recommended, MEDIA_LIST_TIMEOUT)
 
         return home_initial_featured, home_initial_recommended
-    except Exception:
+    except Exception as error:
         logger.exception("Failed to build home initial data")
+        capture_unexpected_exception(error)
         return _home_featured_envelope([]), _home_recommended_envelope([])
 
 
@@ -905,8 +908,9 @@ def view_media(request):
         if not can_see_restricted_media and request.POST.get("password"):
             try:
                 token, error = authenticate_restricted_media(media, request.POST.get("password"), ip)
-            except Exception:
+            except Exception as capture_error:
                 logger.exception("Failed to generate token for media %s", media.friendly_token)
+                capture_unexpected_exception(capture_error)
                 wrong_password_provided = True
                 error = None
                 token = None
@@ -1877,8 +1881,9 @@ class MediaActions(APIView):
                     from notifications.services import NotificationService
 
                     NotificationService.on_like(actor=user, media=media)
-                except Exception:
+                except Exception as error:
                     logger.exception("Notification failed for like on %s", media.friendly_token)
+                    capture_unexpected_exception(error)
         else:
             Media.objects.filter(pk=media.pk).update(dislikes=F("dislikes") + 1)
 
@@ -2000,8 +2005,9 @@ class MediaPasswordView(APIView):
                     token = generate_token(media.uid_hex)
                     request.session[f"media_token_{media.friendly_token}"] = token
                     return Response({"token": token}, status=status.HTTP_200_OK)
-                except Exception:
+                except Exception as error:
                     logger.exception("Failed to generate token for media %s", media.friendly_token)
+                    capture_unexpected_exception(error)
                     return Response(
                         {"detail": "Server error generating token."},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -2013,8 +2019,9 @@ class MediaPasswordView(APIView):
 
         try:
             token, error = authenticate_restricted_media(media, password, ip)
-        except Exception:
+        except Exception as error:
             logger.exception("Failed to generate token for media %s", media.friendly_token)
+            capture_unexpected_exception(error)
             return Response(
                 {"detail": "Server error generating token."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -2495,8 +2502,9 @@ class PlaylistDetail(APIView):
                                 NotificationService.on_added_to_playlist(
                                     actor=request.user, media=media, playlist=playlist
                                 )
-                            except Exception:
+                            except Exception as error:
                                 logger.exception("Notification failed for playlist add %s", playlist.pk)
+                                capture_unexpected_exception(error)
 
                         return Response(
                             {"detail": "media added to Playlist"},
@@ -2825,8 +2833,9 @@ class CommentDetail(APIView):
                         comment=comment,
                         mentioned_users=notified,
                     )
-            except Exception:
+            except Exception as error:
                 logger.exception("Notification failed for comment %s", comment.pk)
+                capture_unexpected_exception(error)
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

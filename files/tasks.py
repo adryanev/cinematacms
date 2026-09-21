@@ -25,6 +25,7 @@ from django.utils import timezone
 
 from actions.models import USER_MEDIA_ACTIONS, MediaAction
 from cms.cache_telemetry import owned_cache
+from cms.error_tracking import capture_unexpected_exception
 from cms.observability import inject_trace_headers, media_reference, start_span
 from users.models import User
 
@@ -1907,18 +1908,20 @@ def _apply_visibility_schedules_inner():
             transition_count += 1
             if went_public:
                 tokens_to_notify.append(media.friendly_token)
-        except Exception:
+        except Exception as error:
             failure_count += 1
             logger.exception("Failed to apply visibility schedule for media %s", getattr(media, "pk", "unknown"))
+            capture_unexpected_exception(error)
 
     # Send publish notifications after all row locks are released so SMTP
     # round-trips don't hold the DB transaction open.
     for token in tokens_to_notify:
         try:
             notify_users(friendly_token=token, action="media_published")
-        except Exception:
+        except Exception as error:
             failure_count += 1
             logger.exception("Failed to send publish notification for media %s", token)
+            capture_unexpected_exception(error)
 
     if transition_count:
         logger.info("Applied %d visibility schedule transitions", transition_count)
@@ -1986,12 +1989,13 @@ def _dispatch_deferred_encodings_inner():
                 priority=priority,
                 headers=inject_trace_headers({"enqueued_at": time.time()}),
             )
-        except Exception:
+        except Exception as error:
             logger.exception(
                 "Drain task failed to dispatch encoding %d for %s, rolling back claim",
                 encoding.id,
                 encoding.media.friendly_token,
             )
+            capture_unexpected_exception(error)
             Encoding.objects.filter(id=encoding.id).update(task_dispatched=False)
             continue
         dispatched_count += 1

@@ -8,6 +8,9 @@ SECRET_KEY = "test-key-not-for-production"
 EMAIL_RECIPIENT_HMAC_KEY = "test-email-hmac-key-not-for-production"
 DEBUG = False
 CELERY_TASK_ALWAYS_EAGER = True
+SENTRY_DSN = ""
+ERROR_TRACKING_DIAGNOSTICS_ENABLED = False
+ERROR_TRACKING_DIAGNOSTICS_TOKEN = ""
 
 # Never mirror the development database. Django creates and destroys a
 # dedicated test database for every non-keepdb run.

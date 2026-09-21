@@ -5,6 +5,7 @@ import re
 
 from django.core.management.base import BaseCommand
 
+from cms.error_tracking import capture_unexpected_exception
 from files.models import Media
 from files.tasks import create_hls
 
@@ -52,6 +53,7 @@ class Command(BaseCommand):
             except Exception as error:
                 failed += 1
                 logger.exception("Could not repair missing encryption key for media %s", media.friendly_token)
+                capture_unexpected_exception(error)
                 self.stderr.write(f"token={media.friendly_token} action=repair result=failed error={error}")
                 continue
 

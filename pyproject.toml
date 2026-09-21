@@ -51,6 +51,7 @@ dependencies = [
     "opentelemetry-instrumentation-redis>=0.65b0",
     "opentelemetry-instrumentation-requests>=0.65b0",
     "opentelemetry-instrumentation-psycopg2>=0.65b0",
+    "sentry-sdk==2.69.2",
 ]
 
 [dependency-groups]

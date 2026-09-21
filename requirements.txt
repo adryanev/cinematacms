@@ -18,7 +18,9 @@ billiard==4.2.4
 celery==5.6.3
     # via cinemata
 certifi==2026.7.22
-    # via requests
+    # via
+    #   requests
+    #   sentry-sdk
 cffi==2.1.1 ; platform_python_implementation != 'PyPy'
     # via cryptography
 charset-normalizer==3.5.1
@@ -259,6 +261,8 @@ requests==2.34.2
     #   opentelemetry-exporter-otlp-proto-http
 rpdb==0.2.0
     # via cinemata
+sentry-sdk==2.69.2
+    # via cinemata
 six==1.17.0
     # via python-dateutil
 sqlparse==0.6.0
@@ -296,6 +300,7 @@ urllib3==2.8.0
     # via
     #   cinemata
     #   requests
+    #   sentry-sdk
 uwsgi==2.0.31
     # via cinemata
 vine==5.1.0

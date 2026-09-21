@@ -47,6 +47,7 @@
         "metrics",
         "health_live",
         "health_ready",
+        "error_tracking_diagnostic",
         "home",
         "robots",
         "upload_page",
@@ -514,6 +515,7 @@
         "metrics",
         "logs",
         "traces",
+        "errors",
         "timing",
         "context",
         "database"
@@ -529,6 +531,7 @@
         "database",
         "domain",
         "exporter",
+        "error_tracking_sdk",
         "http",
         "span",
         "telemetry_contract"
@@ -607,6 +610,7 @@
     "cinematacms.domain.outcome",
     "cinematacms.email.delivery",
     "cinematacms.scheduled_job.outcome",
+    "cinematacms.error_tracking.exception",
     "cinematacms.telemetry.emission_failed",
     "cinematacms.telemetry.contract_violation"
   ],
@@ -1456,6 +1460,7 @@
           "metrics",
           "health_live",
           "health_ready",
+          "error_tracking_diagnostic",
           "home",
           "robots",
           "upload_page",
@@ -2261,6 +2266,54 @@
       }
     },
     {
+      "id": "telemetry.error_tracking",
+      "status": "covered",
+      "domain": "telemetry",
+      "operation": "error_tracking",
+      "outcomes": [
+        "captured",
+        "disabled",
+        "delivery_failed"
+      ],
+      "metric": [
+        "cinematacms_telemetry_emission_failures_total"
+      ],
+      "dimensions": [
+        "signal",
+        "component",
+        "stage"
+      ],
+      "events": [
+        "cinematacms.error_tracking.exception"
+      ],
+      "instrumentation_seam": "cms.error_tracking.configure_error_tracking",
+      "privacy_constraints": [
+        "Remove request data, headers, cookies, query strings, user data, frame locals, attachments, SQL statements, email addresses, and raw IP addresses before transport.",
+        "Keep sanitized exception messages, stack locations, release, environment, service role, and trace identifiers for incident investigation."
+      ],
+      "tests": [
+        "cms.tests.test_error_tracking"
+      ],
+      "operator_query": "Group native exception events by environment, release, service role, and trace identifier; diagnose from sanitized stack locations.",
+      "registry_coverage": {
+        "domains": [
+          "telemetry"
+        ],
+        "http_operations": [
+          "error_tracking_diagnostic"
+        ],
+        "telemetry_signals": [
+          "errors"
+        ],
+        "telemetry_components": [
+          "error_tracking_sdk"
+        ],
+        "telemetry_stages": [
+          "export"
+        ]
+      }
+    },
+    {
       "id": "telemetry.emission_failures",
       "status": "covered",
       "domain": "telemetry",
@@ -2297,6 +2350,7 @@
           "metrics",
           "logs",
           "traces",
+          "errors",
           "timing",
           "context",
           "database"
@@ -2309,6 +2363,7 @@
           "database",
           "domain",
           "exporter",
+          "error_tracking_sdk",
           "http",
           "span",
           "telemetry_contract"
@@ -2365,6 +2420,7 @@
           "database",
           "domain",
           "exporter",
+          "error_tracking_sdk",
           "http",
           "span",
           "telemetry_contract"

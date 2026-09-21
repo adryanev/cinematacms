@@ -16,8 +16,10 @@ try:
 except ImportError:
     pass
 
+from cms.error_tracking import configure_error_tracking  # noqa: E402
 from cms.observability import configure_django_observability  # noqa: E402
 
+configure_error_tracking()
 configure_django_observability()
 
 application = get_wsgi_application()

@@ -9,6 +9,8 @@ from urllib.parse import urlparse
 
 from django.conf import settings
 
+from cms.error_tracking import capture_unexpected_exception
+
 logger = logging.getLogger(__name__)
 
 _tracer_configured = False
@@ -179,6 +181,27 @@ def _configure_dependency_instrumentation() -> None:
         _requests_instrumented = True
 
 
+def sanitize_django_request_span(span, environ) -> None:
+    del environ
+    if span is None:
+        return
+    try:
+        if hasattr(span, "is_recording") and not span.is_recording():
+            return
+        for attribute in (
+            "client.address",
+            "http.client_ip",
+            "http.target",
+            "http.url",
+            "net.peer.ip",
+            "url.full",
+        ):
+            span.set_attribute(attribute, "[redacted]")
+        span.set_attribute("url.query", "")
+    except Exception:
+        _record_telemetry_failure("traces", "http", "attribute")
+
+
 def configure_django_observability() -> None:
     global _django_instrumented
 
@@ -189,11 +212,12 @@ def configure_django_observability() -> None:
         if not _django_instrumented:
             from opentelemetry.instrumentation.django import DjangoInstrumentor
 
-            DjangoInstrumentor().instrument()
+            DjangoInstrumentor().instrument(request_hook=sanitize_django_request_span)
             _django_instrumented = True
         _configure_dependency_instrumentation()
-    except Exception:
+    except Exception as error:
         logger.exception("Failed to configure Django observability")
+        capture_unexpected_exception(error)
 
 
 def configure_celery_observability() -> None:
@@ -209,8 +233,9 @@ def configure_celery_observability() -> None:
             CeleryInstrumentor().instrument()
             _celery_instrumented = True
         _configure_dependency_instrumentation()
-    except Exception:
+    except Exception as error:
         logger.exception("Failed to configure Celery observability")
+        capture_unexpected_exception(error)
 
 
 def configure_celery_worker_process() -> None:
@@ -301,6 +326,9 @@ class OpenTelemetryLogFilter(logging.Filter):
             record.task_id = ""
             record.task_name = ""
             record.queue = "default"
+        from cms.error_tracking import sanitize_log_record
+
+        sanitize_log_record(record)
         return True
 
 

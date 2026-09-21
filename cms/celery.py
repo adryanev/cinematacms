@@ -3,9 +3,11 @@ import os
 from celery import Celery
 from celery.signals import worker_process_init
 
+from cms.error_tracking import configure_error_tracking
 from cms.observability import configure_celery_worker_process
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cms.settings")
+configure_error_tracking()
 app = Celery("cms")
 
 app.config_from_object("django.conf:settings", namespace="CELERY")

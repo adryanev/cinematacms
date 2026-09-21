@@ -281,7 +281,7 @@ DOMAIN_REASON_CODES = frozenset(
         "other",
     }
 )
-TELEMETRY_SIGNALS = frozenset({"metrics", "logs", "traces", "timing", "context", "database"})
+TELEMETRY_SIGNALS = frozenset({"metrics", "logs", "traces", "errors", "timing", "context", "database"})
 TELEMETRY_COMPONENTS = frozenset(
     {
         "application",
@@ -291,6 +291,7 @@ TELEMETRY_COMPONENTS = frozenset(
         "database",
         "domain",
         "exporter",
+        "error_tracking_sdk",
         "http",
         "span",
         "telemetry_contract",

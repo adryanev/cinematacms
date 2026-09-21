@@ -26,6 +26,7 @@ from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
 
 from cms.cache_telemetry import owned_cache
+from cms.error_tracking import capture_unexpected_exception
 
 query_cache = owned_cache.bind("query")
 query_version_cache = owned_cache.bind("query_version")
@@ -132,6 +133,7 @@ def _bump_cache_version(scope: str, identifier: str) -> int:
 
     except Exception as e:
         logger.exception(f"Failed to bump cache version for {scope}:{identifier}: {e}")
+        capture_unexpected_exception(e)
         return 1
 
 

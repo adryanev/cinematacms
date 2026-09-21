@@ -17,6 +17,7 @@ from prometheus_client import CollectorRegistry, generate_latest
 from prometheus_client import multiprocess as prom_multiprocess
 
 from cms.cache_telemetry import owned_cache
+from cms.error_tracking import ErrorTrackingDiagnosticError, capture_unexpected_exception
 from cms.health import live as health_live
 from cms.health import ready as health_ready
 from cms.request_utils import get_client_ip
@@ -24,6 +25,70 @@ from files.metrics import refresh_runtime_metrics
 
 lookup_logger = logging.getLogger("cms.observability.lookup")
 lookup_rate_cache = owned_cache.bind("incident_lookup_rate_limit")
+error_tracking_logger = logging.getLogger("cms.observability.error_tracking")
+error_tracking_diagnostic_rate_cache = owned_cache.bind("error_tracking_diagnostic_rate_limit")
+
+
+def _error_tracking_diagnostic_source_allowed(request):
+    client_ip = get_client_ip(request)
+    try:
+        return ipaddress.ip_address(client_ip).is_loopback
+    except ValueError:
+        return False
+
+
+def _error_tracking_diagnostic_rate_limited(request):
+    client_ip = get_client_ip(request)
+    fingerprint = hashlib.sha256(client_ip.encode()).hexdigest()[:24]
+    key = f"error-tracking-diagnostic:{fingerprint}"
+    limit = min(50, max(1, getattr(settings, "ERROR_TRACKING_DIAGNOSTICS_RATE_LIMIT", 50)))
+    window = max(1, getattr(settings, "ERROR_TRACKING_DIAGNOSTICS_RATE_WINDOW_SECONDS", 3600))
+    try:
+        if error_tracking_diagnostic_rate_cache.add(key, 1, timeout=window, raise_on_error=True):
+            return False
+        return error_tracking_diagnostic_rate_cache.incr(key, raise_on_error=True) > limit
+    except Exception as error:
+        error_tracking_logger.error(
+            "cinematacms.observability.error_tracking_diagnostic.denied",
+            extra={"outcome": "denied", "reason": "rate_limit_unavailable"},
+        )
+        capture_unexpected_exception(error)
+        return True
+
+
+def _audit_error_tracking_diagnostic(level, outcome, reason):
+    getattr(error_tracking_logger, level)(
+        "cinematacms.observability.error_tracking_diagnostic.%s",
+        outcome,
+        extra={"outcome": outcome, "reason": reason},
+    )
+
+
+@csrf_exempt
+def error_tracking_diagnostic(request):
+    enabled = getattr(settings, "ERROR_TRACKING_DIAGNOSTICS_ENABLED", False)
+    environment = getattr(settings, "SENTRY_ENVIRONMENT", "")
+    if not enabled or environment != "staging":
+        return HttpResponse(status=404)
+    if not _error_tracking_diagnostic_source_allowed(request):
+        _audit_error_tracking_diagnostic("warning", "denied", "untrusted_source")
+        return JsonResponse({"error": "forbidden"}, status=403)
+    if request.method != "POST":
+        _audit_error_tracking_diagnostic("warning", "denied", "method_not_allowed")
+        return JsonResponse({"error": "method_not_allowed"}, status=405)
+    if _error_tracking_diagnostic_rate_limited(request):
+        _audit_error_tracking_diagnostic("warning", "denied", "rate_limited")
+        response = JsonResponse({"error": "rate_limited"}, status=429)
+        response["Retry-After"] = str(getattr(settings, "ERROR_TRACKING_DIAGNOSTICS_RATE_WINDOW_SECONDS", 3600))
+        return response
+    expected_token = getattr(settings, "ERROR_TRACKING_DIAGNOSTICS_TOKEN", "")
+    supplied_token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+    if not expected_token or not hmac.compare_digest(supplied_token, expected_token):
+        _audit_error_tracking_diagnostic("warning", "denied", "invalid_credentials")
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    _audit_error_tracking_diagnostic("info", "triggered", "authorized")
+    raise ErrorTrackingDiagnosticError("staging error tracking diagnostic")
 
 
 def _reference_lookup_source_allowed(request):
@@ -51,11 +116,12 @@ def _reference_lookup_rate_limited(request):
         if lookup_rate_cache.add(key, 1, timeout=window, raise_on_error=True):
             return False
         return lookup_rate_cache.incr(key, raise_on_error=True) > limit
-    except Exception:
+    except Exception as error:
         lookup_logger.exception(
             "cinematacms.observability.reference_lookup.denied",
             extra={"outcome": "denied", "reason": "rate_limit_unavailable"},
         )
+        capture_unexpected_exception(error)
         return True
 
 
@@ -174,6 +240,7 @@ urlpatterns = [
     path("robots.txt", robots_txt),
     path("metrics", metrics_view),
     path("internal/observability/references", observability_reference_lookup),
+    path("internal/observability/error-probe", error_tracking_diagnostic),
     path("health/live", health_live),
     path("health/ready", health_ready),
     path(settings.DJANGO_ADMIN_URL, admin.site.urls),
