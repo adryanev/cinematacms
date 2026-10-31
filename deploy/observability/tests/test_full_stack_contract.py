@@ -304,6 +304,22 @@ class FullStackContractTests(unittest.TestCase):
             self.assertTrue(reads_whole_file_on_truncate(receiver), receiver)
         self.assertFalse(reads_whole_file_on_truncate("file_log/nginx"))
 
+    def test_logs_shorter_than_the_collector_fingerprint_are_not_rotated(self):
+        collector = (OBSERVABILITY / "templates/otelcol.yml").read_text()
+        rotation = (OBSERVABILITY / "templates/app-logs.logrotate").read_text()
+        # The file_log receiver fingerprints this many leading bytes unless a receiver sets fingerprint_size.
+        collector_default_fingerprint_bytes = 1000
+        bytes_per_logrotate_unit = {"": 1, "k": 1024, "M": 1024**2, "G": 1024**3}
+
+        configured = re.findall(r"(?m)^\s+fingerprint_size:\s*(\S+)\s*$", collector)
+        self.assertTrue(all(size.isdigit() for size in configured), f"fingerprint_size must be plain bytes: {configured}")
+        fingerprint_bytes = max([collector_default_fingerprint_bytes, *map(int, configured)])
+
+        minsize = re.search(r"(?m)^\s+minsize\s+(\d+)([kMG]?)$", rotation)
+        self.assertIsNotNone(minsize, "a log shorter than the fingerprint is read again from its .1 copy")
+        minsize_bytes = int(minsize.group(1)) * bytes_per_logrotate_unit[minsize.group(2)]
+        self.assertGreaterEqual(minsize_bytes, fingerprint_bytes)
+
     def test_maxsize_is_checked_hourly_by_a_timer_the_installer_runs_and_verifies(self):
         installer = (OBSERVABILITY / "install.sh").read_text()
         templates = OBSERVABILITY / "templates"

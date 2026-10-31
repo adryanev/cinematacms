@@ -4,6 +4,8 @@ ${APP_SERVICE_LOG_DIR}/*.log ${APP_SERVICE_LOG_DIR}/errorlog.txt ${UNCOVERED_APP
   rotate 14
   missingok
   notifempty
+  # the Collector's default fingerprint covers the first 1000 bytes, so a shorter log and its .1 copy can be read twice
+  minsize 1k
   compress
   delaycompress
   # celery, uwsgi and the Django FileHandler keep the file open; truncating in place avoids a restart

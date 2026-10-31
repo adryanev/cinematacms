@@ -49,6 +49,12 @@ from the `.1` copy. After an outage that spans two or more rotations, the lines
 that moved into `.gz` backups are not backfilled; they stay in those backups for
 14 rotations. Ingesting the `.gz` backups was rejected because switching to them
 re-ingested every retained backup. Collector 0.159.0 was the version tested.
+A log under 1 KiB is not rotated (`minsize 1k`) because the Collector identifies
+a file by its first 1000 bytes. If it has read fewer bytes than that and more
+arrive before the copy, a poll between the copy and the truncate treats `.1` as
+a new file and ingests it again. A log that crosses 1 KiB within one poll
+interval (200 ms) of rotation can still be ingested twice. The result is
+duplicate lines, not lost ones.
 
 ## Error tracking
 
